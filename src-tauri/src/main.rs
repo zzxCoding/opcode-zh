@@ -5,6 +5,7 @@ mod commands;
 mod sandbox;
 mod checkpoint;
 mod process;
+mod claude_binary;
 
 use tauri::Manager;
 use commands::claude::{
