@@ -17,10 +17,19 @@ import {
   ArrowLeft,
   History,
   Download,
-  Upload
+  Upload,
+  Globe,
+  FileJson,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api, type Agent, type AgentRunWithMetrics } from "@/lib/api";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -31,6 +40,7 @@ import { AgentExecution } from "./AgentExecution";
 import { AgentRunsList } from "./AgentRunsList";
 import { AgentRunView } from "./AgentRunView";
 import { RunningSessionsView } from "./RunningSessionsView";
+import { GitHubAgentBrowser } from "./GitHubAgentBrowser";
 
 interface CCAgentsProps {
   /**
@@ -76,6 +86,7 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
   const [activeTab, setActiveTab] = useState<"agents" | "running">("agents");
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [showGitHubBrowser, setShowGitHubBrowser] = useState(false);
 
   const AGENTS_PER_PAGE = 9; // 3x3 grid
 
@@ -294,15 +305,29 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                onClick={handleImportAgent}
-                size="default"
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Import
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="default"
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Import
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleImportAgent}>
+                    <FileJson className="h-4 w-4 mr-2" />
+                    From File
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowGitHubBrowser(true)}>
+                    <Globe className="h-4 w-4 mr-2" />
+                    From GitHub
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 onClick={() => setView("create")}
                 size="default"
@@ -535,6 +560,17 @@ export const CCAgents: React.FC<CCAgentsProps> = ({ onBack, className }) => {
           />
         )}
       </ToastContainer>
+
+      {/* GitHub Agent Browser */}
+      <GitHubAgentBrowser
+        isOpen={showGitHubBrowser}
+        onClose={() => setShowGitHubBrowser(false)}
+        onImportSuccess={async () => {
+          setShowGitHubBrowser(false);
+          await loadAgents();
+          setToast({ message: "Agent imported successfully from GitHub", type: "success" });
+        }}
+      />
     </div>
   );
 };
