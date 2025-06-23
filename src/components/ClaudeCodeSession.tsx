@@ -32,7 +32,6 @@ import { SplitPane } from "@/components/ui/split-pane";
 import { WebviewPreview } from "./WebviewPreview";
 import { PreviewPromptDialog } from "./PreviewPromptDialog";
 import type { ClaudeStreamMessage } from "./AgentExecution";
-import { enhanceMessages, type EnhancedMessage } from "@/types/enhanced-messages";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 interface ClaudeCodeSessionProps {
@@ -68,7 +67,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
 }) => {
   const [projectPath, setProjectPath] = useState(initialProjectPath || session?.project_path || "");
   const [messages, setMessages] = useState<ClaudeStreamMessage[]>([]);
-  const [enhancedMessages, setEnhancedMessages] = useState<EnhancedMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawJsonlOutput, setRawJsonlOutput] = useState<string[]>([]);
@@ -114,8 +112,66 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     return null;
   }, [session, extractedSessionInfo, projectPath]);
 
+  // Filter out messages that shouldn't be displayed
+  const displayableMessages = useMemo(() => {
+    return messages.filter((message, index) => {
+      // Skip meta messages that don't have meaningful content
+      if (message.isMeta && !message.leafUuid && !message.summary) {
+        return false;
+      }
+
+      // Skip empty user messages
+      if (message.type === "user" && message.message) {
+        const msg = message.message;
+        if (!msg.content || (Array.isArray(msg.content) && msg.content.length === 0)) {
+          return false;
+        }
+        
+        // Check if this is a user message with only tool results that are already displayed
+        if (Array.isArray(msg.content)) {
+          const hasOnlyHiddenToolResults = msg.content.every((content: any) => {
+            if (content.type !== "tool_result") return false;
+            
+            // Check if this tool result should be hidden
+            let hasCorrespondingWidget = false;
+            if (content.tool_use_id) {
+              // Look for the matching tool_use in previous assistant messages
+              for (let i = index - 1; i >= 0; i--) {
+                const prevMsg = messages[i];
+                if (prevMsg.type === 'assistant' && prevMsg.message?.content && Array.isArray(prevMsg.message.content)) {
+                  const toolUse = prevMsg.message.content.find((c: any) => 
+                    c.type === 'tool_use' && c.id === content.tool_use_id
+                  );
+                  if (toolUse) {
+                    const toolName = toolUse.name?.toLowerCase();
+                    const toolsWithWidgets = [
+                      'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read', 
+                      'glob', 'bash', 'write', 'grep'
+                    ];
+                    if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) {
+                      hasCorrespondingWidget = true;
+                    }
+                    break;
+                  }
+                }
+              }
+            }
+            
+            return hasCorrespondingWidget && !content.is_error;
+          });
+          
+          if (hasOnlyHiddenToolResults) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [messages]);
+
   const rowVirtualizer = useVirtualizer({
-    count: enhancedMessages.length,
+    count: displayableMessages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 150, // Estimate, will be dynamically measured
     overscan: 5,
@@ -140,18 +196,13 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
   }, [session]);
 
-  // Enhance messages whenever they change
-  useEffect(() => {
-    const enhanced = enhanceMessages(messages);
-    setEnhancedMessages(enhanced);
-  }, [messages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (enhancedMessages.length > 0) {
-      rowVirtualizer.scrollToIndex(enhancedMessages.length - 1, { align: 'end', behavior: 'smooth' });
+    if (displayableMessages.length > 0) {
+      rowVirtualizer.scrollToIndex(displayableMessages.length - 1, { align: 'end', behavior: 'smooth' });
     }
-  }, [enhancedMessages.length, rowVirtualizer]);
+  }, [displayableMessages.length, rowVirtualizer]);
 
   // Calculate total tokens from messages
   useEffect(() => {
@@ -586,7 +637,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       >
         <AnimatePresence>
           {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-            const message = enhancedMessages[virtualItem.index];
+            const message = displayableMessages[virtualItem.index];
             return (
               <motion.div
                 key={virtualItem.key}
@@ -603,7 +654,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               >
                 <StreamMessage 
                   message={message} 
-                  streamMessages={enhancedMessages}
+                  streamMessages={messages}
                   onLinkDetected={handleLinkDetected}
                 />
               </motion.div>
@@ -778,7 +829,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               </Tooltip>
             </TooltipProvider>
             
-            {enhancedMessages.length > 0 && (
+            {messages.length > 0 && (
               <Popover
                 trigger={
                   <Button
@@ -855,7 +906,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             </div>
           )}
 
-          {isLoading && enhancedMessages.length === 0 && (
+          {isLoading && messages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="flex items-center gap-3">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -863,31 +914,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                   {session ? "Loading session history..." : "Initializing Claude Code..."}
                 </span>
               </div>
-            </div>
-          )}
-
-          <AnimatePresence>
-            {enhancedMessages.map((message, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <ErrorBoundary>
-                  <StreamMessage message={message} streamMessages={enhancedMessages} />
-                </ErrorBoundary>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          
-          {/* Show loading indicator when processing, even if there are messages */}
-          {isLoading && enhancedMessages.length > 0 && (
-            <div className="flex items-center gap-2 p-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">
-                {isCancelling ? "Cancelling..." : "Processing..."}
-              </span>
             </div>
           )}
         </div>
