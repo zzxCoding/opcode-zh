@@ -1,5 +1,4 @@
-use crate::sandbox::profile::{ProfileBuilder, SandboxRule};
-use crate::sandbox::executor::{SerializedProfile, SerializedOperation};
+use crate::sandbox::profile::ProfileBuilder;
 use anyhow::Result;
 use chrono;
 use log::{debug, error, info, warn};
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -16,104 +15,7 @@ use tokio::process::Command;
 /// Finds the full path to the claude binary
 /// This is necessary because macOS apps have a limited PATH environment
 fn find_claude_binary(app_handle: &AppHandle) -> Result<String, String> {
-    log::info!("Searching for claude binary...");
-    
-    // First check if we have a stored path in the database
-    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
-        let db_path = app_data_dir.join("agents.db");
-        if db_path.exists() {
-            if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-                if let Ok(stored_path) = conn.query_row(
-                    "SELECT value FROM app_settings WHERE key = 'claude_binary_path'",
-                    [],
-                    |row| row.get::<_, String>(0),
-                ) {
-                    log::info!("Found stored claude path in database: {}", stored_path);
-                    let path_buf = std::path::PathBuf::from(&stored_path);
-                    if path_buf.exists() && path_buf.is_file() {
-                        return Ok(stored_path);
-                    } else {
-                        log::warn!("Stored claude path no longer exists: {}", stored_path);
-                    }
-                }
-            }
-        }
-    }
-    
-    // Common installation paths for claude
-    let mut paths_to_check: Vec<String> = vec![
-        "/usr/local/bin/claude".to_string(),
-        "/opt/homebrew/bin/claude".to_string(),
-        "/usr/bin/claude".to_string(),
-        "/bin/claude".to_string(),
-    ];
-    
-    // Also check user-specific paths
-    if let Ok(home) = std::env::var("HOME") {
-        paths_to_check.extend(vec![
-            format!("{}/.claude/local/claude", home),
-            format!("{}/.local/bin/claude", home),
-            format!("{}/.npm-global/bin/claude", home),
-            format!("{}/.yarn/bin/claude", home),
-            format!("{}/.bun/bin/claude", home),
-            format!("{}/bin/claude", home),
-            // Check common node_modules locations
-            format!("{}/node_modules/.bin/claude", home),
-            format!("{}/.config/yarn/global/node_modules/.bin/claude", home),
-        ]);
-    }
-    
-    // Check each path
-    for path in paths_to_check {
-        let path_buf = std::path::PathBuf::from(&path);
-        if path_buf.exists() && path_buf.is_file() {
-            log::info!("Found claude at: {}", path);
-            return Ok(path);
-        }
-    }
-    
-    // In production builds, skip the 'which' command as it's blocked by Tauri
-    #[cfg(not(debug_assertions))]
-    {
-        log::warn!("Cannot use 'which' command in production build, checking if claude is in PATH");
-        // In production, just return "claude" and let the execution fail with a proper error
-        // if it's not actually available. The user can then set the path manually.
-        return Ok("claude".to_string());
-    }
-    
-    // Only try 'which' in development builds
-    #[cfg(debug_assertions)]
-    {
-        // Fallback: try using 'which' command
-        log::info!("Trying 'which claude' to find binary...");
-        if let Ok(output) = std::process::Command::new("which")
-            .arg("claude")
-            .output()
-        {
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !path.is_empty() {
-                    log::info!("'which' found claude at: {}", path);
-                    return Ok(path);
-                }
-            }
-        }
-        
-        // Additional fallback: check if claude is in the current PATH
-        // This might work in dev mode
-        if let Ok(output) = std::process::Command::new("claude")
-            .arg("--version")
-            .output()
-        {
-            if output.status.success() {
-                log::info!("claude is available in PATH (dev mode?)");
-                return Ok("claude".to_string());
-            }
-        }
-    }
-    
-    log::error!("Could not find claude binary in any common location");
-    Err("Claude Code not found. Please ensure it's installed and in one of these locations: /usr/local/bin, /opt/homebrew/bin, ~/.claude/local, ~/.local/bin, or in your PATH".to_string())
+    crate::claude_binary::find_claude_binary(app_handle)
 }
 
 /// Represents a CC Agent stored in the database
@@ -1896,20 +1798,36 @@ pub async fn set_claude_binary_path(db: State<'_, AgentDb>, path: String) -> Res
 /// Helper function to create a tokio Command with proper environment variables
 /// This ensures commands like Claude can find Node.js and other dependencies
 fn create_command_with_env(program: &str) -> Command {
-    let mut cmd = Command::new(program);
-
-    // Inherit essential environment variables from parent process
+    // Convert std::process::Command to tokio::process::Command
+    let _std_cmd = crate::claude_binary::create_command_with_env(program);
+    
+    // Create a new tokio Command from the program path
+    let mut tokio_cmd = Command::new(program);
+    
+    // Copy over all environment variables from the std::process::Command
+    // This is a workaround since we can't directly convert between the two types
     for (key, value) in std::env::vars() {
         if key == "PATH" || key == "HOME" || key == "USER" 
             || key == "SHELL" || key == "LANG" || key == "LC_ALL" || key.starts_with("LC_")
             || key == "NODE_PATH" || key == "NVM_DIR" || key == "NVM_BIN" 
             || key == "HOMEBREW_PREFIX" || key == "HOMEBREW_CELLAR" {
-            cmd.env(&key, &value);
+            tokio_cmd.env(&key, &value);
+        }
+    }
+    
+    // Add NVM support if the program is in an NVM directory
+    if program.contains("/.nvm/versions/node/") {
+        if let Some(node_bin_dir) = std::path::Path::new(program).parent() {
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            let node_bin_str = node_bin_dir.to_string_lossy();
+            if !current_path.contains(&node_bin_str.as_ref()) {
+                let new_path = format!("{}:{}", node_bin_str, current_path);
+                tokio_cmd.env("PATH", new_path);
+            }
         }
     }
 
-    // Ensure PATH contains common Homebrew locations so that `/usr/bin/env node` resolves
-    // when the application is launched from the macOS GUI (PATH is very minimal there).
+    // Ensure PATH contains common Homebrew locations
     if let Ok(existing_path) = std::env::var("PATH") {
         let mut paths: Vec<&str> = existing_path.split(':').collect();
         for p in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].iter() {
@@ -1918,13 +1836,12 @@ fn create_command_with_env(program: &str) -> Command {
             }
         }
         let joined = paths.join(":");
-        cmd.env("PATH", joined);
+        tokio_cmd.env("PATH", joined);
     } else {
-        // Fallback: set a reasonable default PATH
-        cmd.env("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin");
+        tokio_cmd.env("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin");
     }
 
-    cmd
+    tokio_cmd
 }
 
 /// Import an agent from JSON data

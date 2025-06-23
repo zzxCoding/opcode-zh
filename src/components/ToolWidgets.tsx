@@ -55,7 +55,7 @@ import { detectLinks, makeLinksClickable } from "@/lib/linkDetector";
 /**
  * Widget for TodoWrite tool - displays a beautiful TODO list
  */
-export const TodoWidget: React.FC<{ todos: any[]; result?: any }> = ({ todos, result }) => {
+export const TodoWidget: React.FC<{ todos: any[]; result?: any }> = ({ todos, result: _result }) => {
   const statusIcons = {
     completed: <CheckCircle2 className="h-4 w-4 text-green-500" />,
     in_progress: <Clock className="h-4 w-4 text-blue-500 animate-pulse" />,
@@ -677,7 +677,7 @@ export const BashWidget: React.FC<{
 /**
  * Widget for Write tool
  */
-export const WriteWidget: React.FC<{ filePath: string; content: string; result?: any }> = ({ filePath, content, result }) => {
+export const WriteWidget: React.FC<{ filePath: string; content: string; result?: any }> = ({ filePath, content, result: _result }) => {
   const [isMaximized, setIsMaximized] = useState(false);
   
   // Extract file extension for syntax highlighting
@@ -852,7 +852,7 @@ export const GrepWidget: React.FC<{
   path?: string;
   exclude?: string;
   result?: any;
-}> = ({ pattern, include, path, exclude, result }) => {
+}> = ({ pattern, include, path, exclude, result: _result }) => {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 mb-2">
@@ -944,7 +944,7 @@ export const EditWidget: React.FC<{
   old_string: string; 
   new_string: string;
   result?: any;
-}> = ({ file_path, old_string, new_string, result }) => {
+}> = ({ file_path, old_string, new_string, result: _result }) => {
 
   const diffResult = Diff.diffLines(old_string || '', new_string || '', { 
     newlineIsToken: true,
@@ -1104,7 +1104,7 @@ export const MCPWidget: React.FC<{
   toolName: string; 
   input?: any;
   result?: any;
-}> = ({ toolName, input, result }) => {
+}> = ({ toolName, input, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Parse the tool name to extract components
@@ -1406,7 +1406,7 @@ export const MultiEditWidget: React.FC<{
   file_path: string;
   edits: Array<{ old_string: string; new_string: string }>;
   result?: any;
-}> = ({ file_path, edits, result }) => {
+}> = ({ file_path, edits, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const language = getLanguage(file_path);
   
@@ -1817,7 +1817,7 @@ export const TaskWidget: React.FC<{
   description?: string; 
   prompt?: string;
   result?: any;
-}> = ({ description, prompt, result }) => {
+}> = ({ description, prompt, result: _result }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   return (
