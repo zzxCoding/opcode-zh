@@ -18,8 +18,6 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api, type GitHubAgentFile, type AgentExport } from "@/lib/api";
 import { AGENT_ICONS, type AgentIconName } from "./CCAgents";
-import { cn } from "@/lib/utils";
-
 interface GitHubAgentBrowserProps {
   isOpen: boolean;
   onClose: () => void;

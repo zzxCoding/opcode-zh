@@ -480,6 +480,20 @@ export const api = {
   },
 
   /**
+   * Retrieves sessions for a specific project
+   * @param projectId - The ID of the project to retrieve sessions for
+   * @returns Promise resolving to an array of sessions
+   */
+  async getProjectSessions(projectId: string): Promise<Session[]> {
+    try {
+      return await invoke<Session[]>('get_project_sessions', { projectId });
+    } catch (error) {
+      console.error("Failed to get project sessions:", error);
+      throw error;
+    }
+  },
+
+  /**
    * Fetch list of agents from GitHub repository
    * @returns Promise resolving to list of available agents on GitHub
    */
