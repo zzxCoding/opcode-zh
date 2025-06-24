@@ -698,66 +698,6 @@ pub async fn list_agent_runs_with_metrics(
     Ok(runs_with_metrics)
 }
 
-/// Migration function for existing agent_runs data
-#[tauri::command]
-pub async fn migrate_agent_runs_to_session_ids(db: State<'_, AgentDb>) -> Result<String, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    
-    // Get all agent_runs that have empty session_id but have output data
-    let mut stmt = conn.prepare(
-        "SELECT id, output FROM agent_runs WHERE session_id = '' AND output != ''"
-    ).map_err(|e| e.to_string())?;
-    
-    let rows = stmt.query_map([], |row| {
-        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-    }).map_err(|e| e.to_string())?;
-    
-    let mut migrated_count = 0;
-    let mut failed_count = 0;
-    
-    for row_result in rows {
-        let (run_id, output) = row_result.map_err(|e| e.to_string())?;
-        
-        // Extract session ID from JSONL output
-        let mut session_id = String::new();
-        for line in output.lines() {
-            if let Ok(json) = serde_json::from_str::<JsonValue>(line) {
-                if let Some(sid) = json.get("sessionId").and_then(|s| s.as_str()) {
-                    session_id = sid.to_string();
-                    break;
-                }
-            }
-        }
-        
-        if !session_id.is_empty() {
-            // Update the run with the extracted session ID
-            match conn.execute(
-                "UPDATE agent_runs SET session_id = ?1 WHERE id = ?2",
-                params![session_id, run_id],
-            ) {
-                Ok(_) => {
-                    migrated_count += 1;
-                    info!("Migrated agent_run {} with session_id {}", run_id, session_id);
-                }
-                Err(e) => {
-                    error!("Failed to update agent_run {}: {}", run_id, e);
-                    failed_count += 1;
-                }
-            }
-        } else {
-            warn!("Could not extract session ID from agent_run {}", run_id);
-            failed_count += 1;
-        }
-    }
-    
-    let message = format!(
-        "Migration completed: {} runs migrated, {} failed", 
-        migrated_count, failed_count
-    );
-    info!("{}", message);
-    Ok(message)
-}
-
 /// Execute a CC agent with streaming output
 #[tauri::command]
 pub async fn execute_agent(

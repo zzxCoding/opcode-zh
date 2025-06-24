@@ -474,6 +474,11 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
       }
     }
     
+    // Remove trailing empty lines
+    while (codeLines.length > 0 && codeLines[codeLines.length - 1] === '') {
+      codeLines.pop();
+    }
+    
     return {
       codeContent: codeLines.join('\n'),
       startLineNumber: minLineNumber === Infinity ? 1 : minLineNumber
