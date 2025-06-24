@@ -1807,6 +1807,18 @@ pub async fn set_claude_binary_path(db: State<'_, AgentDb>, path: String) -> Res
     Ok(())
 }
 
+/// List all available Claude installations on the system
+#[tauri::command]
+pub async fn list_claude_installations() -> Result<Vec<crate::claude_binary::ClaudeInstallation>, String> {
+    let installations = crate::claude_binary::discover_claude_installations();
+    
+    if installations.is_empty() {
+        return Err("No Claude Code installations found on the system".to_string());
+    }
+    
+    Ok(installations)
+}
+
 /// Helper function to create a tokio Command with proper environment variables
 /// This ensures commands like Claude can find Node.js and other dependencies
 fn create_command_with_env(program: &str) -> Command {

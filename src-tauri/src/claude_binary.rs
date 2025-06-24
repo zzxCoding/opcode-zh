@@ -6,9 +6,10 @@ use log::{info, warn, debug, error};
 use anyhow::Result;
 use std::cmp::Ordering;
 use tauri::Manager;
+use serde::{Serialize, Deserialize};
 
 /// Represents a Claude installation with metadata
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeInstallation {
     /// Full path to the Claude binary
     pub path: String,
@@ -65,6 +66,55 @@ pub fn find_claude_binary(app_handle: &tauri::AppHandle) -> Result<String, Strin
         Ok(best.path)
     } else {
         Err("No valid Claude installation found".to_string())
+    }
+}
+
+/// Discovers all available Claude installations and returns them for selection
+/// This allows UI to show a version selector
+pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
+    info!("Discovering all Claude installations...");
+    
+    let installations = discover_all_installations();
+    
+    // Sort by version (highest first), then by source preference
+    let mut sorted = installations;
+    sorted.sort_by(|a, b| {
+        match (&a.version, &b.version) {
+            (Some(v1), Some(v2)) => {
+                // Compare versions in descending order (newest first)
+                match compare_versions(v2, v1) {
+                    Ordering::Equal => {
+                        // If versions are equal, prefer by source
+                        source_preference(a).cmp(&source_preference(b))
+                    }
+                    other => other
+                }
+            }
+            (Some(_), None) => Ordering::Less, // Version comes before no version
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => source_preference(a).cmp(&source_preference(b))
+        }
+    });
+    
+    sorted
+}
+
+/// Returns a preference score for installation sources (lower is better)
+fn source_preference(installation: &ClaudeInstallation) -> u8 {
+    match installation.source.as_str() {
+        "which" => 1,
+        "homebrew" => 2,
+        "system" => 3,
+        source if source.starts_with("nvm") => 4,
+        "local-bin" => 5,
+        "claude-local" => 6,
+        "npm-global" => 7,
+        "yarn" | "yarn-global" => 8,
+        "bun" => 9,
+        "node-modules" => 10,
+        "home-bin" => 11,
+        "PATH" => 12,
+        _ => 13,
     }
 }
 
@@ -263,19 +313,25 @@ fn extract_version_from_output(stdout: &[u8]) -> Option<String> {
 
 /// Select the best installation based on version
 fn select_best_installation(installations: Vec<ClaudeInstallation>) -> Option<ClaudeInstallation> {
+    // In production builds, version information may not be retrievable because
+    // spawning external processes can be restricted. We therefore no longer
+    // discard installations that lack a detected version – the mere presence
+    // of a readable binary on disk is enough to consider it valid. We still
+    // prefer binaries with version information when it is available so that
+    // in development builds we keep the previous behaviour of picking the
+    // most recent version.
     installations.into_iter()
-        .filter(|i| {
-            // Prefer installations with known versions
-            i.version.is_some() || i.path == "claude"
-        })
         .max_by(|a, b| {
-            // First compare by version presence
             match (&a.version, &b.version) {
+                // If both have versions, compare them semantically.
                 (Some(v1), Some(v2)) => compare_versions(v1, v2),
+                // Prefer the entry that actually has version information.
                 (Some(_), None) => Ordering::Greater,
                 (None, Some(_)) => Ordering::Less,
+                // Neither have version info: prefer the one that is not just
+                // the bare "claude" lookup from PATH, because that may fail
+                // at runtime if PATH is sandbox-stripped.
                 (None, None) => {
-                    // Both have no version, prefer non-PATH entries
                     if a.path == "claude" && b.path != "claude" {
                         Ordering::Less
                     } else if a.path != "claude" && b.path == "claude" {

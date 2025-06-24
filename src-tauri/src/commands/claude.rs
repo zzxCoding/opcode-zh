@@ -440,6 +440,10 @@ pub async fn get_claude_settings() -> Result<ClaudeSettings, String> {
 pub async fn open_new_session(app: AppHandle, path: Option<String>) -> Result<String, String> {
     log::info!("Opening new Claude Code session at path: {:?}", path);
     
+    #[cfg(not(debug_assertions))]
+    let _claude_path = find_claude_binary(&app)?;
+    
+    #[cfg(debug_assertions)]
     let claude_path = find_claude_binary(&app)?;
     
     // In production, we can't use std::process::Command directly

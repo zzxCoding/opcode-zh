@@ -70,7 +70,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
   className,
 }) => {
   const [projectPath, setProjectPath] = useState("");
-  const [task, setTask] = useState("");
+  const [task, setTask] = useState(agent.default_task || "");
   const [model, setModel] = useState(agent.model || "sonnet");
   const [isRunning, setIsRunning] = useState(false);
   const [messages, setMessages] = useState<ClaudeStreamMessage[]>([]);
@@ -646,7 +646,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
                 <Input
                   value={task}
                   onChange={(e) => setTask(e.target.value)}
-                  placeholder={agent.default_task || "Enter the task for the agent"}
+                  placeholder="Enter the task for the agent"
                   disabled={isRunning}
                   className="flex-1"
                   onKeyPress={(e) => {

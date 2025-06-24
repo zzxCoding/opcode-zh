@@ -78,6 +78,18 @@ export interface FileEntry {
   extension?: string;
 }
 
+/**
+ * Represents a Claude installation found on the system
+ */
+export interface ClaudeInstallation {
+  /** Full path to the Claude binary */
+  path: string;
+  /** Version string if available */
+  version?: string;
+  /** Source of discovery (e.g., "nvm", "system", "homebrew", "which") */
+  source: string;
+}
+
 // Sandbox API types
 export interface SandboxProfile {
   id?: number;
@@ -1905,6 +1917,19 @@ export const api = {
       return await invoke<number>("cleanup_screenshot_temp_files", { olderThanMinutes });
     } catch (error) {
       console.error("Failed to cleanup screenshot files:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * List all available Claude installations on the system
+   * @returns Promise resolving to an array of Claude installations
+   */
+  async listClaudeInstallations(): Promise<ClaudeInstallation[]> {
+    try {
+      return await invoke<ClaudeInstallation[]>("list_claude_installations");
+    } catch (error) {
+      console.error("Failed to list Claude installations:", error);
       throw error;
     }
   },
