@@ -1869,3 +1869,53 @@ export const TaskWidget: React.FC<{
     </div>
   );
 };
+
+/**
+ * Widget for displaying AI thinking/reasoning content
+ * Collapsible and closed by default
+ */
+export const ThinkingWidget: React.FC<{ 
+  thinking: string;
+  signature?: string;
+}> = ({ thinking, signature }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  return (
+    <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-violet-500/5 overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-purple-500/10 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Bot className="h-4 w-4 text-purple-500" />
+            <Sparkles className="h-2.5 w-2.5 text-purple-400 absolute -top-1 -right-1 animate-pulse" />
+          </div>
+          <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+            Thinking...
+          </span>
+        </div>
+        <ChevronRight className={cn(
+          "h-4 w-4 text-purple-500 transition-transform",
+          isExpanded && "rotate-90"
+        )} />
+      </button>
+      
+      {isExpanded && (
+        <div className="px-4 pb-4 pt-2 space-y-3 border-t border-purple-500/20">
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <pre className="text-xs font-mono text-purple-700 dark:text-purple-300 whitespace-pre-wrap bg-purple-500/5 p-3 rounded-lg">
+              {thinking}
+            </pre>
+          </div>
+          
+          {signature && (
+            <div className="text-xs text-purple-600/60 dark:text-purple-400/60 font-mono truncate">
+              Signature: {signature.slice(0, 16)}...
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};

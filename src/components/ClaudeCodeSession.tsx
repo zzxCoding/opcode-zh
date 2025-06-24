@@ -285,16 +285,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       // Set up event listeners before executing
       console.log('[ClaudeCodeSession] Setting up event listeners...');
       
-      // Listen for the session started event to get the Claude session ID
-      const sessionStartedUnlisten = await listen<string>(`claude-session-started:*`, (event) => {
-        const eventName = event.event;
-        const sessionId = eventName.split(':')[1];
-        if (sessionId && !claudeSessionId) {
-          console.log('[ClaudeCodeSession] Received Claude session ID:', sessionId);
-          setClaudeSessionId(sessionId);
-        }
-      });
-      
       // If we already have a Claude session ID, use isolated listeners
       const eventSuffix = claudeSessionId ? `:${claudeSessionId}` : '';
       
@@ -315,14 +305,22 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           });
           
           // Extract session info from system init message
-          if (message.type === "system" && message.subtype === "init" && message.session_id && !extractedSessionInfo) {
+          if (message.type === "system" && message.subtype === "init" && message.session_id) {
             console.log('[ClaudeCodeSession] Extracting session info from init message');
             // Extract project ID from the project path
             const projectId = projectPath.replace(/[^a-zA-Z0-9]/g, '-');
-            setExtractedSessionInfo({
-              sessionId: message.session_id,
-              projectId: projectId
-            });
+            
+            // Set both claudeSessionId and extractedSessionInfo
+            if (!claudeSessionId) {
+              setClaudeSessionId(message.session_id);
+            }
+            
+            if (!extractedSessionInfo) {
+              setExtractedSessionInfo({
+                sessionId: message.session_id,
+                projectId: projectId
+              });
+            }
           }
         } catch (err) {
           console.error("Failed to parse message:", err, event.payload);
@@ -364,7 +362,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         }
       });
 
-      unlistenRefs.current = [sessionStartedUnlisten, outputUnlisten, errorUnlisten, completeUnlisten];
+      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten];
       
       // Add the user message immediately to the UI (after setting up listeners)
       const userMessage: ClaudeStreamMessage = {

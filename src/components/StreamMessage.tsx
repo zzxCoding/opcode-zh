@@ -33,7 +33,8 @@ import {
   SystemReminderWidget,
   SystemInitializedWidget,
   TaskWidget,
-  LSResultWidget
+  LSResultWidget,
+  ThinkingWidget
 } from "./ToolWidgets";
 
 interface StreamMessageProps {
@@ -73,6 +74,15 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
     if (!toolId) return null;
     return toolResults.get(toolId) || null;
   };
+  
+  // Debug logging to understand message structure
+  console.log('[StreamMessage] Rendering message:', {
+    type: message.type,
+    hasMessage: !!message.message,
+    messageStructure: message.message ? Object.keys(message.message) : 'no message field',
+    fullMessage: message
+  });
+  
   try {
     // Skip rendering for meta messages that don't have meaningful content
     if (message.isMeta && !message.leafUuid && !message.summary) {
@@ -143,6 +153,19 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                         >
                           {textContent}
                         </ReactMarkdown>
+                      </div>
+                    );
+                  }
+                  
+                  // Thinking content - render with ThinkingWidget
+                  if (content.type === "thinking") {
+                    renderedSomething = true;
+                    return (
+                      <div key={idx}>
+                        <ThinkingWidget 
+                          thinking={content.thinking || ''} 
+                          signature={content.signature}
+                        />
                       </div>
                     );
                   }
@@ -258,6 +281,7 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                   
                   return null;
                 })}
+                
                 {msg.usage && (
                   <div className="text-xs text-muted-foreground mt-2">
                     Tokens: {msg.usage.input_tokens} in, {msg.usage.output_tokens} out
@@ -268,16 +292,18 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
           </CardContent>
         </Card>
       );
+      
       if (!renderedSomething) return null;
       return renderedCard;
     }
 
-    // User message
-    if (message.type === "user" && message.message) {
+    // User message - handle both nested and direct content structures
+    if (message.type === "user") {
       // Don't render meta messages, which are for system use
       if (message.isMeta) return null;
 
-      const msg = message.message;
+      // Handle different message structures
+      const msg = message.message || message;
       
       let renderedSomething = false;
       
@@ -288,9 +314,9 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
               <User className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div className="flex-1 space-y-2 min-w-0">
                 {/* Handle content that is a simple string (e.g. from user commands) */}
-                {typeof msg.content === 'string' && (
+                {(typeof msg.content === 'string' || (msg.content && !Array.isArray(msg.content))) && (
                   (() => {
-                    const contentStr = msg.content as string;
+                    const contentStr = typeof msg.content === 'string' ? msg.content : String(msg.content);
                     if (contentStr.trim() === '') return null;
                     renderedSomething = true;
                     
@@ -316,9 +342,9 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                     
                     // Otherwise render as plain text
                     return (
-                      <pre className="text-sm font-mono whitespace-pre-wrap text-muted-foreground">
+                      <div className="text-sm">
                         {contentStr}
-                      </pre>
+                      </div>
                     );
                   })()
                 )}
@@ -646,8 +672,8 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
                 )}
                 
                 <div className="text-xs text-muted-foreground space-y-1 mt-2">
-                  {message.cost_usd !== undefined && (
-                    <div>Cost: ${message.cost_usd.toFixed(4)} USD</div>
+                  {(message.cost_usd !== undefined || message.total_cost_usd !== undefined) && (
+                    <div>Cost: ${((message.cost_usd || message.total_cost_usd)!).toFixed(4)} USD</div>
                   )}
                   {message.duration_ms !== undefined && (
                     <div>Duration: {(message.duration_ms / 1000).toFixed(2)}s</div>
