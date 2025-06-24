@@ -1952,9 +1952,6 @@ struct GitHubApiResponse {
     path: String,
     sha: String,
     size: i64,
-    url: String,
-    html_url: String,
-    git_url: String,
     download_url: Option<String>,
     #[serde(rename = "type")]
     file_type: String,

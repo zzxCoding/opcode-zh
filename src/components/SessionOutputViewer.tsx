@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Maximize2, Minimize2, Copy, RefreshCw, RotateCcw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -282,6 +282,47 @@ export function SessionOutputViewer({ session, onClose, className }: SessionOutp
     loadOutput();
   }, [session.id]);
 
+  const displayableMessages = useMemo(() => {
+    return messages.filter((message, index) => {
+      if (message.isMeta && !message.leafUuid && !message.summary) return false;
+
+      if (message.type === "user" && message.message) {
+        if (message.isMeta) return false;
+
+        const msg = message.message;
+        if (!msg.content || (Array.isArray(msg.content) && msg.content.length === 0)) return false;
+
+        if (Array.isArray(msg.content)) {
+          let hasVisibleContent = false;
+          for (const content of msg.content) {
+            if (content.type === "text") { hasVisibleContent = true; break; }
+            if (content.type === "tool_result") {
+              let willBeSkipped = false;
+              if (content.tool_use_id) {
+                for (let i = index - 1; i >= 0; i--) {
+                  const prevMsg = messages[i];
+                  if (prevMsg.type === 'assistant' && prevMsg.message?.content && Array.isArray(prevMsg.message.content)) {
+                    const toolUse = prevMsg.message.content.find((c: any) => c.type === 'tool_use' && c.id === content.tool_use_id);
+                    if (toolUse) {
+                      const toolName = toolUse.name?.toLowerCase();
+                      const toolsWithWidgets = ['task','edit','multiedit','todowrite','ls','read','glob','bash','write','grep'];
+                      if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) {
+                        willBeSkipped = true;
+                      }
+                      break;
+                    }
+                  }
+                }
+              }
+              if (!willBeSkipped) { hasVisibleContent = true; break; }
+            }
+          }
+          if (!hasVisibleContent) return false;
+        }
+      }
+      return true;
+    });
+  }, [messages]);
 
   return (
     <>
@@ -432,7 +473,7 @@ export function SessionOutputViewer({ session, onClose, className }: SessionOutp
                 ) : (
                   <>
                     <AnimatePresence>
-                      {messages.map((message: ClaudeStreamMessage, index: number) => (
+                      {displayableMessages.map((message: ClaudeStreamMessage, index: number) => (
                         <motion.div
                           key={index}
                           initial={{ opacity: 0, y: 10 }}
@@ -556,7 +597,7 @@ export function SessionOutputViewer({ session, onClose, className }: SessionOutp
               ) : (
                 <>
                   <AnimatePresence>
-                    {messages.map((message: ClaudeStreamMessage, index: number) => (
+                    {displayableMessages.map((message: ClaudeStreamMessage, index: number) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, y: 10 }}

@@ -103,45 +103,54 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
 
       // Skip empty user messages
       if (message.type === "user" && message.message) {
+        if (message.isMeta) return false;
+        
         const msg = message.message;
         if (!msg.content || (Array.isArray(msg.content) && msg.content.length === 0)) {
           return false;
         }
         
-        // Check if this is a user message with only tool results that are already displayed
+        // Check if user message has visible content by checking its parts
         if (Array.isArray(msg.content)) {
-          const hasOnlyHiddenToolResults = msg.content.every((content: any) => {
-            if (content.type !== "tool_result") return false;
-            
-            // Check if this tool result should be hidden
-            let hasCorrespondingWidget = false;
-            if (content.tool_use_id) {
-              // Look for the matching tool_use in previous assistant messages
-              for (let i = index - 1; i >= 0; i--) {
-                const prevMsg = messages[i];
-                if (prevMsg.type === 'assistant' && prevMsg.message?.content && Array.isArray(prevMsg.message.content)) {
-                  const toolUse = prevMsg.message.content.find((c: any) => 
-                    c.type === 'tool_use' && c.id === content.tool_use_id
-                  );
-                  if (toolUse) {
-                    const toolName = toolUse.name?.toLowerCase();
-                    const toolsWithWidgets = [
-                      'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read', 
-                      'glob', 'bash', 'write', 'grep'
-                    ];
-                    if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) {
-                      hasCorrespondingWidget = true;
+          let hasVisibleContent = false;
+          for (const content of msg.content) {
+            if (content.type === "text") {
+              hasVisibleContent = true;
+              break;
+            } else if (content.type === "tool_result") {
+              // Check if this tool result will be skipped by a widget
+              let willBeSkipped = false;
+              if (content.tool_use_id) {
+                // Look for the matching tool_use in previous assistant messages
+                for (let i = index - 1; i >= 0; i--) {
+                  const prevMsg = messages[i];
+                  if (prevMsg.type === 'assistant' && prevMsg.message?.content && Array.isArray(prevMsg.message.content)) {
+                    const toolUse = prevMsg.message.content.find((c: any) => 
+                      c.type === 'tool_use' && c.id === content.tool_use_id
+                    );
+                    if (toolUse) {
+                      const toolName = toolUse.name?.toLowerCase();
+                      const toolsWithWidgets = [
+                        'task', 'edit', 'multiedit', 'todowrite', 'ls', 'read', 
+                        'glob', 'bash', 'write', 'grep'
+                      ];
+                      if (toolsWithWidgets.includes(toolName) || toolUse.name?.startsWith('mcp__')) {
+                        willBeSkipped = true;
+                      }
+                      break;
                     }
-                    break;
                   }
                 }
               }
+              
+              if (!willBeSkipped) {
+                hasVisibleContent = true;
+                break;
+              }
             }
-            
-            return hasCorrespondingWidget && !content.is_error;
-          });
+          }
           
-          if (hasOnlyHiddenToolResults) {
+          if (!hasVisibleContent) {
             return false;
           }
         }
