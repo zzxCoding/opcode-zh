@@ -9,6 +9,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::{Command, Child};
 use tokio::sync::Mutex;
 use std::sync::Arc;
+use uuid;
 
 /// Global state to track current Claude process
 pub struct ClaudeProcessState {
@@ -857,8 +858,8 @@ pub async fn resume_claude_code(
 
 /// Cancel the currently running Claude Code execution
 #[tauri::command]
-pub async fn cancel_claude_execution(app: AppHandle) -> Result<(), String> {
-    log::info!("Cancelling Claude Code execution");
+pub async fn cancel_claude_execution(app: AppHandle, session_id: Option<String>) -> Result<(), String> {
+    log::info!("Cancelling Claude Code execution for session: {:?}", session_id);
     
     let claude_state = app.state::<ClaudeProcessState>();
     let mut current_process = claude_state.current_process.lock().await;
@@ -872,9 +873,16 @@ pub async fn cancel_claude_execution(app: AppHandle) -> Result<(), String> {
         match child.kill().await {
             Ok(_) => {
                 log::info!("Successfully killed Claude process");
-                // Emit cancellation event
+                
+                // If we have a session ID, emit session-specific events
+                if let Some(sid) = session_id {
+                    let _ = app.emit(&format!("claude-cancelled:{}", sid), true);
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    let _ = app.emit(&format!("claude-complete:{}", sid), false);
+                }
+                
+                // Also emit generic events for backward compatibility
                 let _ = app.emit("claude-cancelled", true);
-                // Also emit complete with false to indicate failure
                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 let _ = app.emit("claude-complete", false);
                 Ok(())
@@ -1055,6 +1063,15 @@ fn get_claude_settings_sync(_app: &AppHandle) -> Result<ClaudeSettings, String> 
 async fn spawn_claude_process(app: AppHandle, mut cmd: Command) -> Result<(), String> {
     use tokio::io::{AsyncBufReadExt, BufReader};
     
+    // Generate a unique session ID for this Claude Code session
+    let session_id = format!("claude-{}-{}", 
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        uuid::Uuid::new_v4().to_string()
+    );
+    
     // Spawn the process
     let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn Claude: {}", e))?;
     
@@ -1064,36 +1081,47 @@ async fn spawn_claude_process(app: AppHandle, mut cmd: Command) -> Result<(), St
     
     // Get the child PID for logging
     let pid = child.id();
-    log::info!("Spawned Claude process with PID: {:?}", pid);
+    log::info!("Spawned Claude process with PID: {:?} and session ID: {}", pid, session_id);
     
     // Create readers
     let stdout_reader = BufReader::new(stdout);
     let stderr_reader = BufReader::new(stderr);
     
-    // Store the child process in the global state
+    // Store the child process in the global state (for backward compatibility)
     let claude_state = app.state::<ClaudeProcessState>();
     {
         let mut current_process = claude_state.current_process.lock().await;
+        // If there's already a process running, kill it first
+        if let Some(mut existing_child) = current_process.take() {
+            log::warn!("Killing existing Claude process before starting new one");
+            let _ = existing_child.kill().await;
+        }
         *current_process = Some(child);
     }
     
     // Spawn tasks to read stdout and stderr
     let app_handle = app.clone();
+    let session_id_clone = session_id.clone();
     let stdout_task = tokio::spawn(async move {
         let mut lines = stdout_reader.lines();
         while let Ok(Some(line)) = lines.next_line().await {
             log::debug!("Claude stdout: {}", line);
-            // Emit the line to the frontend
+            // Emit the line to the frontend with session isolation
+            let _ = app_handle.emit(&format!("claude-output:{}", session_id_clone), &line);
+            // Also emit to the generic event for backward compatibility
             let _ = app_handle.emit("claude-output", &line);
         }
     });
     
     let app_handle_stderr = app.clone();
+    let session_id_clone2 = session_id.clone();
     let stderr_task = tokio::spawn(async move {
         let mut lines = stderr_reader.lines();
         while let Ok(Some(line)) = lines.next_line().await {
             log::error!("Claude stderr: {}", line);
-            // Emit error lines to the frontend
+            // Emit error lines to the frontend with session isolation
+            let _ = app_handle_stderr.emit(&format!("claude-error:{}", session_id_clone2), &line);
+            // Also emit to the generic event for backward compatibility
             let _ = app_handle_stderr.emit("claude-error", &line);
         }
     });
@@ -1101,6 +1129,7 @@ async fn spawn_claude_process(app: AppHandle, mut cmd: Command) -> Result<(), St
     // Wait for the process to complete
     let app_handle_wait = app.clone();
     let claude_state_wait = claude_state.current_process.clone();
+    let session_id_clone3 = session_id.clone();
     tokio::spawn(async move {
         let _ = stdout_task.await;
         let _ = stderr_task.await;
@@ -1113,12 +1142,16 @@ async fn spawn_claude_process(app: AppHandle, mut cmd: Command) -> Result<(), St
                     log::info!("Claude process exited with status: {}", status);
                     // Add a small delay to ensure all messages are processed
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    let _ = app_handle_wait.emit(&format!("claude-complete:{}", session_id_clone3), status.success());
+                    // Also emit to the generic event for backward compatibility
                     let _ = app_handle_wait.emit("claude-complete", status.success());
                 }
                 Err(e) => {
                     log::error!("Failed to wait for Claude process: {}", e);
                     // Add a small delay to ensure all messages are processed
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    let _ = app_handle_wait.emit(&format!("claude-complete:{}", session_id_clone3), false);
+                    // Also emit to the generic event for backward compatibility
                     let _ = app_handle_wait.emit("claude-complete", false);
                 }
             }
@@ -1127,6 +1160,9 @@ async fn spawn_claude_process(app: AppHandle, mut cmd: Command) -> Result<(), St
         // Clear the process from state
         *current_process = None;
     });
+    
+    // Return the session ID to the frontend
+    let _ = app.emit(&format!("claude-session-started:{}", session_id), session_id.clone());
     
     Ok(())
 }

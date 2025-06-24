@@ -1251,7 +1251,9 @@ pub async fn execute_agent(
                 }
             }
             
-            // Emit the line to the frontend
+            // Emit the line to the frontend with run_id for isolation
+            let _ = app_handle.emit(&format!("agent-output:{}", run_id), &line);
+            // Also emit to the generic event for backward compatibility
             let _ = app_handle.emit("agent-output", &line);
         }
         
@@ -1277,7 +1279,9 @@ pub async fn execute_agent(
             }
             
             error!("stderr[{}]: {}", error_count, line);
-            // Emit error lines to the frontend
+            // Emit error lines to the frontend with run_id for isolation
+            let _ = app_handle_stderr.emit(&format!("agent-error:{}", run_id), &line);
+            // Also emit to the generic event for backward compatibility
             let _ = app_handle_stderr.emit("agent-error", &line);
         }
         
@@ -1366,6 +1370,7 @@ pub async fn execute_agent(
             }
             
             let _ = app.emit("agent-complete", false);
+            let _ = app.emit(&format!("agent-complete:{}", run_id), false);
             return;
         }
         
@@ -1398,6 +1403,7 @@ pub async fn execute_agent(
         // Cleanup will be handled by the cleanup_finished_processes function
         
         let _ = app.emit("agent-complete", true);
+        let _ = app.emit(&format!("agent-complete:{}", run_id), true);
     });
     
     Ok(run_id)
@@ -1442,43 +1448,45 @@ pub async fn list_running_sessions(
 /// Kill a running agent session
 #[tauri::command]
 pub async fn kill_agent_session(
+    app: AppHandle,
     db: State<'_, AgentDb>,
+    registry: State<'_, crate::process::ProcessRegistryState>,
     run_id: i64,
 ) -> Result<bool, String> {
-    // First try to kill the process using system kill
-    let pid_result = {
-        let conn = db.0.lock().map_err(|e| e.to_string())?;
-        conn.query_row(
-            "SELECT pid FROM agent_runs WHERE id = ?1 AND status = 'running'",
-            params![run_id],
-            |row| row.get::<_, Option<i64>>(0)
-        )
-        .map_err(|e| e.to_string())?
+    info!("Attempting to kill agent session {}", run_id);
+    
+    // First try to kill using the process registry
+    let killed_via_registry = match registry.0.kill_process(run_id).await {
+        Ok(success) => {
+            if success {
+                info!("Successfully killed process {} via registry", run_id);
+                true
+            } else {
+                warn!("Process {} not found in registry", run_id);
+                false
+            }
+        }
+        Err(e) => {
+            warn!("Failed to kill process {} via registry: {}", run_id, e);
+            false
+        }
     };
     
-    if let Some(pid) = pid_result {
-        // Try to kill the process
-        let kill_result = if cfg!(target_os = "windows") {
-            std::process::Command::new("taskkill")
-                .args(["/F", "/PID", &pid.to_string()])
-                .output()
-        } else {
-            std::process::Command::new("kill")
-                .args(["-TERM", &pid.to_string()])
-                .output()
+    // If registry kill didn't work, try fallback with PID from database
+    if !killed_via_registry {
+        let pid_result = {
+            let conn = db.0.lock().map_err(|e| e.to_string())?;
+            conn.query_row(
+                "SELECT pid FROM agent_runs WHERE id = ?1 AND status = 'running'",
+                params![run_id],
+                |row| row.get::<_, Option<i64>>(0)
+            )
+            .map_err(|e| e.to_string())?
         };
         
-        match kill_result {
-            Ok(output) => {
-                if output.status.success() {
-                    info!("Successfully killed process {}", pid);
-                } else {
-                    warn!("Kill command failed for PID {}: {}", pid, String::from_utf8_lossy(&output.stderr));
-                }
-            }
-            Err(e) => {
-                warn!("Failed to execute kill command for PID {}: {}", pid, e);
-            }
+        if let Some(pid) = pid_result {
+            info!("Attempting fallback kill for PID {} from database", pid);
+            let _ = registry.0.kill_process_by_pid(run_id, pid as u32)?;
         }
     }
     
@@ -1489,7 +1497,10 @@ pub async fn kill_agent_session(
         params![run_id],
     ).map_err(|e| e.to_string())?;
     
-    Ok(updated > 0)
+    // Emit cancellation event with run_id for proper isolation
+    let _ = app.emit(&format!("agent-cancelled:{}", run_id), true);
+    
+    Ok(updated > 0 || killed_via_registry)
 }
 
 /// Get the status of a specific agent session

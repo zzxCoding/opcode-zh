@@ -176,13 +176,15 @@ export function AgentRunOutputViewer({
   };
 
   const setupLiveEventListeners = async () => {
+    if (!run.id) return;
+    
     try {
       // Clean up existing listeners
       unlistenRefs.current.forEach(unlisten => unlisten());
       unlistenRefs.current = [];
 
-      // Set up live event listeners
-      const outputUnlisten = await listen<string>("agent-output", (event) => {
+      // Set up live event listeners with run ID isolation
+      const outputUnlisten = await listen<string>(`agent-output:${run.id}`, (event) => {
         try {
           // Store raw JSONL
           setRawJsonlOutput(prev => [...prev, event.payload]);
@@ -195,16 +197,20 @@ export function AgentRunOutputViewer({
         }
       });
 
-      const errorUnlisten = await listen<string>("agent-error", (event) => {
+      const errorUnlisten = await listen<string>(`agent-error:${run.id}`, (event) => {
         console.error("Agent error:", event.payload);
         setToast({ message: event.payload, type: 'error' });
       });
 
-      const completeUnlisten = await listen<boolean>("agent-complete", () => {
+      const completeUnlisten = await listen<boolean>(`agent-complete:${run.id}`, () => {
         setToast({ message: 'Agent execution completed', type: 'success' });
       });
 
-      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten];
+      const cancelUnlisten = await listen<boolean>(`agent-cancelled:${run.id}`, () => {
+        setToast({ message: 'Agent execution was cancelled', type: 'error' });
+      });
+
+      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten, cancelUnlisten];
     } catch (error) {
       console.error('Failed to set up live event listeners:', error);
     }

@@ -71,10 +71,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [copyPopoverOpen, setCopyPopoverOpen] = useState(false);
   const [isFirstPrompt, setIsFirstPrompt] = useState(!session);
   const [totalTokens, setTotalTokens] = useState(0);
-  const [extractedSessionInfo, setExtractedSessionInfo] = useState<{
-    sessionId: string;
-    projectId: string;
-  } | null>(null);
+  const [extractedSessionInfo, setExtractedSessionInfo] = useState<{ sessionId: string; projectId: string } | null>(null);
+  const [claudeSessionId, setClaudeSessionId] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
   const [timelineVersion, setTimelineVersion] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -268,33 +266,39 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   };
 
   const handleSendPrompt = async (prompt: string, model: "sonnet" | "opus") => {
-    if (!projectPath || !prompt.trim() || isLoading) return;
+    console.log('[ClaudeCodeSession] handleSendPrompt called with:', { prompt, model, projectPath });
+    
+    if (!projectPath) {
+      setError("Please select a project directory first");
+      return;
+    }
 
     try {
       setIsLoading(true);
       setError(null);
       hasActiveSessionRef.current = true;
-
-      // Add the user message immediately to the UI
-      const userMessage: ClaudeStreamMessage = {
-        type: "user",
-        message: {
-          content: [
-            {
-              type: "text",
-              text: prompt
-            }
-          ]
-        }
-      };
-      setMessages(prev => [...prev, userMessage]);
-
-      // Clean up any existing listeners before creating new ones
+      
+      // Clean up previous listeners
       unlistenRefs.current.forEach(unlisten => unlisten());
       unlistenRefs.current = [];
-
-      // Set up event listeners
-      const outputUnlisten = await listen<string>("claude-output", async (event) => {
+      
+      // Set up event listeners before executing
+      console.log('[ClaudeCodeSession] Setting up event listeners...');
+      
+      // Listen for the session started event to get the Claude session ID
+      const sessionStartedUnlisten = await listen<string>(`claude-session-started:*`, (event) => {
+        const eventName = event.event;
+        const sessionId = eventName.split(':')[1];
+        if (sessionId && !claudeSessionId) {
+          console.log('[ClaudeCodeSession] Received Claude session ID:', sessionId);
+          setClaudeSessionId(sessionId);
+        }
+      });
+      
+      // If we already have a Claude session ID, use isolated listeners
+      const eventSuffix = claudeSessionId ? `:${claudeSessionId}` : '';
+      
+      const outputUnlisten = await listen<string>(`claude-output${eventSuffix}`, async (event) => {
         try {
           console.log('[ClaudeCodeSession] Received claude-output:', event.payload);
           
@@ -325,84 +329,69 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         }
       });
 
-      const errorUnlisten = await listen<string>("claude-error", (event) => {
+      const errorUnlisten = await listen<string>(`claude-error${eventSuffix}`, (event) => {
         console.error("Claude error:", event.payload);
         setError(event.payload);
       });
 
-      const completeUnlisten = await listen<boolean>("claude-complete", async (event) => {
+      const completeUnlisten = await listen<boolean>(`claude-complete${eventSuffix}`, async (event) => {
         console.log('[ClaudeCodeSession] Received claude-complete:', event.payload);
         setIsLoading(false);
-        setIsCancelling(false);
         hasActiveSessionRef.current = false;
-        if (!event.payload) {
-          setError("Claude execution failed");
-        }
         
-        // Track all messages at once after completion (batch operation)
-        if (effectiveSession && rawJsonlOutput.length > 0) {
-          console.log('[ClaudeCodeSession] Tracking all messages in batch:', rawJsonlOutput.length);
-          api.trackSessionMessages(
-            effectiveSession.id,
-            effectiveSession.project_id,
-            projectPath,
-            rawJsonlOutput
-          ).catch(err => {
-            console.error("Failed to track session messages:", err);
-          });
-        }
-        
-        // Check if we should auto-checkpoint
-        if (effectiveSession && messages.length > 0) {
+        // Check if we should create an auto checkpoint after completion
+        if (effectiveSession && event.payload) {
           try {
-            const lastMessage = messages[messages.length - 1];
-            const shouldCheckpoint = await api.checkAutoCheckpoint(
+            const settings = await api.getCheckpointSettings(
               effectiveSession.id,
               effectiveSession.project_id,
-              projectPath,
-              JSON.stringify(lastMessage)
+              projectPath
             );
             
-            if (shouldCheckpoint) {
-              await api.createCheckpoint(
+            if (settings.auto_checkpoint_enabled) {
+              await api.checkAutoCheckpoint(
                 effectiveSession.id,
                 effectiveSession.project_id,
                 projectPath,
-                messages.length - 1,
-                "Auto-checkpoint after tool use"
+                prompt
               );
-              console.log("Auto-checkpoint created");
-              // Trigger timeline reload if it's currently visible
+              // Reload timeline to show new checkpoint
               setTimelineVersion((v) => v + 1);
             }
           } catch (err) {
-            console.error("Failed to check/create auto-checkpoint:", err);
+            console.error('Failed to check auto checkpoint:', err);
           }
         }
-        
-        // Clean up listeners after completion
-        unlistenRefs.current.forEach(unlisten => unlisten());
-        unlistenRefs.current = [];
       });
 
-      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten];
+      unlistenRefs.current = [sessionStartedUnlisten, outputUnlisten, errorUnlisten, completeUnlisten];
+      
+      // Add the user message immediately to the UI (after setting up listeners)
+      const userMessage: ClaudeStreamMessage = {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "text",
+              text: prompt
+            }
+          ]
+        }
+      };
+      setMessages(prev => [...prev, userMessage]);
 
       // Execute the appropriate command
-      if (isFirstPrompt && !session) {
-        // New session
-        await api.executeClaudeCode(projectPath, prompt, model);
-        setIsFirstPrompt(false);
-      } else if (session && isFirstPrompt) {
-        // Resuming a session
-        await api.resumeClaudeCode(projectPath, session.id, prompt, model);
-        setIsFirstPrompt(false);
+      if (effectiveSession && !isFirstPrompt) {
+        console.log('[ClaudeCodeSession] Resuming session:', effectiveSession.id);
+        await api.resumeClaudeCode(projectPath, effectiveSession.id, prompt, model);
       } else {
-        // Continuing conversation
-        await api.continueClaudeCode(projectPath, prompt, model);
+        console.log('[ClaudeCodeSession] Starting new session');
+        setIsFirstPrompt(false);
+        await api.executeClaudeCode(projectPath, prompt, model);
       }
     } catch (err) {
       console.error("Failed to send prompt:", err);
-      setError("Failed to execute Claude Code");
+      setError("Failed to send prompt");
       setIsLoading(false);
       hasActiveSessionRef.current = false;
     }
@@ -499,8 +488,8 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     try {
       setIsCancelling(true);
       
-      // Cancel the Claude execution
-      await api.cancelClaudeExecution();
+      // Cancel the Claude execution with session ID if available
+      await api.cancelClaudeExecution(claudeSessionId || undefined);
       
       // Clean up listeners
       unlistenRefs.current.forEach(unlisten => unlisten());

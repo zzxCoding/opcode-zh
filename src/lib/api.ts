@@ -1027,9 +1027,10 @@ export const api = {
 
   /**
    * Cancels the currently running Claude Code execution
+   * @param sessionId - Optional session ID to cancel a specific session
    */
-  async cancelClaudeExecution(): Promise<void> {
-    return invoke("cancel_claude_execution");
+  async cancelClaudeExecution(sessionId?: string): Promise<void> {
+    return invoke("cancel_claude_execution", { sessionId });
   },
 
   /**

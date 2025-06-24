@@ -268,6 +268,8 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
   const handleExecute = async () => {
     if (!projectPath || !task.trim()) return;
 
+    let runId: number | null = null;
+    
     try {
       setIsRunning(true);
       setError(null);
@@ -277,8 +279,11 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
       setElapsedTime(0);
       setTotalTokens(0);
 
-      // Set up event listeners
-      const outputUnlisten = await listen<string>("agent-output", (event) => {
+      // Execute the agent with model override and get run ID
+      runId = await api.executeAgent(agent.id!, projectPath, task, model);
+      
+      // Set up event listeners with run ID isolation
+      const outputUnlisten = await listen<string>(`agent-output:${runId}`, (event) => {
         try {
           // Store raw JSONL
           setRawJsonlOutput(prev => [...prev, event.payload]);
@@ -291,12 +296,12 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
         }
       });
 
-      const errorUnlisten = await listen<string>("agent-error", (event) => {
+      const errorUnlisten = await listen<string>(`agent-error:${runId}`, (event) => {
         console.error("Agent error:", event.payload);
         setError(event.payload);
       });
 
-      const completeUnlisten = await listen<boolean>("agent-complete", (event) => {
+      const completeUnlisten = await listen<boolean>(`agent-complete:${runId}`, (event) => {
         setIsRunning(false);
         setExecutionStartTime(null);
         if (!event.payload) {
@@ -304,10 +309,13 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
         }
       });
 
-      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten];
+      const cancelUnlisten = await listen<boolean>(`agent-cancelled:${runId}`, () => {
+        setIsRunning(false);
+        setExecutionStartTime(null);
+        setError("Agent execution was cancelled");
+      });
 
-      // Execute the agent with model override
-      await api.executeAgent(agent.id!, projectPath, task, model);
+      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten, cancelUnlisten];
     } catch (err) {
       console.error("Failed to execute agent:", err);
       setError("Failed to execute agent");

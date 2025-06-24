@@ -153,13 +153,15 @@ export function SessionOutputViewer({ session, onClose, className }: SessionOutp
   };
 
   const setupLiveEventListeners = async () => {
+    if (!session.id) return;
+    
     try {
       // Clean up existing listeners
       unlistenRefs.current.forEach(unlisten => unlisten());
       unlistenRefs.current = [];
 
-      // Set up live event listeners similar to AgentExecution
-      const outputUnlisten = await listen<string>("agent-output", (event) => {
+      // Set up live event listeners with run ID isolation
+      const outputUnlisten = await listen<string>(`agent-output:${session.id}`, (event) => {
         try {
           // Store raw JSONL
           setRawJsonlOutput(prev => [...prev, event.payload]);
@@ -172,17 +174,21 @@ export function SessionOutputViewer({ session, onClose, className }: SessionOutp
         }
       });
 
-      const errorUnlisten = await listen<string>("agent-error", (event) => {
+      const errorUnlisten = await listen<string>(`agent-error:${session.id}`, (event) => {
         console.error("Agent error:", event.payload);
         setToast({ message: event.payload, type: 'error' });
       });
 
-      const completeUnlisten = await listen<boolean>("agent-complete", () => {
+      const completeUnlisten = await listen<boolean>(`agent-complete:${session.id}`, () => {
         setToast({ message: 'Agent execution completed', type: 'success' });
         // Don't set status here as the parent component should handle it
       });
 
-      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten];
+      const cancelUnlisten = await listen<boolean>(`agent-cancelled:${session.id}`, () => {
+        setToast({ message: 'Agent execution was cancelled', type: 'error' });
+      });
+
+      unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten, cancelUnlisten];
     } catch (error) {
       console.error('Failed to set up live event listeners:', error);
     }
