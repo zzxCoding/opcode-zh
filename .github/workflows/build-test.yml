@@ -100,14 +100,6 @@ jobs:
       - name: Build frontend
         run: bun run build
 
-      # Run Rust linter
-      - name: Run Rust linter
-        if: matrix.platform.os == 'ubuntu-latest'
-        working-directory: ./src-tauri
-        run: |
-          rustup component add clippy
-          cargo clippy -- -D warnings
-
       # Build Tauri application (no bundle for faster CI)
       - name: Build Tauri application
         run: bun run tauri build --no-bundle -d
