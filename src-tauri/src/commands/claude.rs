@@ -1021,7 +1021,14 @@ fn create_sandboxed_claude_command(app: &AppHandle, project_path: &str) -> Resul
                             
                             // Use the helper function to create sandboxed command
                             let claude_path = find_claude_binary(app)?;
-                            Ok(create_sandboxed_command(&claude_path, &[], &project_path_buf, profile, project_path_buf.clone()))
+                            #[cfg(unix)]
+                            return Ok(create_sandboxed_command(&claude_path, &[], &project_path_buf, profile, project_path_buf.clone()));
+                            
+                            #[cfg(not(unix))]
+                            {
+                                log::warn!("Sandboxing not supported on Windows, using regular command");
+                                Ok(create_command_with_env(&claude_path))
+                            }
                         }
                         Err(e) => {
                             log::error!("Failed to build sandbox profile: {}, falling back to non-sandboxed", e);

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+#[cfg(unix)]
 use gaol::sandbox::{ChildSandbox, ChildSandboxMethods, Command as GaolCommand, Sandbox, SandboxMethods};
 use log::{info, warn, error, debug};
 use std::env;
@@ -8,11 +9,13 @@ use tokio::process::Command;
 
 /// Sandbox executor for running commands in a sandboxed environment
 pub struct SandboxExecutor {
+    #[cfg(unix)]
     profile: gaol::profile::Profile,
     project_path: PathBuf,
     serialized_profile: Option<SerializedProfile>,
 }
 
+#[cfg(unix)]
 impl SandboxExecutor {
     /// Create a new sandbox executor with the given profile
     pub fn new(profile: gaol::profile::Profile, project_path: PathBuf) -> Self {
@@ -267,12 +270,76 @@ impl SandboxExecutor {
     }
 }
 
+// Windows implementation - no sandboxing
+#[cfg(not(unix))]
+impl SandboxExecutor {
+    /// Create a new sandbox executor (no-op on Windows)
+    pub fn new(_profile: (), project_path: PathBuf) -> Self {
+        Self {
+            project_path,
+            serialized_profile: None,
+        }
+    }
+    
+    /// Create a new sandbox executor with serialized profile (no-op on Windows)
+    pub fn new_with_serialization(
+        _profile: (), 
+        project_path: PathBuf,
+        serialized_profile: SerializedProfile
+    ) -> Self {
+        Self {
+            project_path,
+            serialized_profile: Some(serialized_profile),
+        }
+    }
+
+    /// Execute a command in the sandbox (Windows - no sandboxing)
+    pub fn execute_sandboxed_spawn(&self, command: &str, args: &[&str], cwd: &Path) -> Result<std::process::Child> {
+        info!("Executing command without sandbox on Windows: {} {:?}", command, args);
+        
+        std::process::Command::new(command)
+            .args(args)
+            .current_dir(cwd)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("Failed to spawn process")
+    }
+
+    /// Prepare a sandboxed tokio Command (Windows - no sandboxing)
+    pub fn prepare_sandboxed_command(&self, command: &str, args: &[&str], cwd: &Path) -> Command {
+        info!("Preparing command without sandbox on Windows: {} {:?}", command, args);
+        
+        let mut cmd = Command::new(command);
+        cmd.args(args)
+            .current_dir(cwd)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        
+        cmd
+    }
+    
+    /// Extract sandbox rules (no-op on Windows)
+    fn extract_sandbox_rules(&self) -> Result<SerializedProfile> {
+        Ok(SerializedProfile { operations: vec![] })
+    }
+    
+    /// Activate sandbox in child process (no-op on Windows)
+    pub fn activate_sandbox_in_child() -> Result<()> {
+        debug!("Sandbox activation skipped on Windows");
+        Ok(())
+    }
+}
+
 /// Check if the current process should activate sandbox
 pub fn should_activate_sandbox() -> bool {
     env::var("GAOL_SANDBOX_ACTIVE").unwrap_or_default() == "1"
 }
 
 /// Helper to create a sandboxed tokio Command
+#[cfg(unix)]
 pub fn create_sandboxed_command(
     command: &str, 
     args: &[&str], 
@@ -300,6 +367,7 @@ pub enum SerializedOperation {
     SystemInfoRead,
 }
 
+#[cfg(unix)]
 fn deserialize_profile(serialized: SerializedProfile, project_path: &Path) -> Result<gaol::profile::Profile> {
     let mut operations = Vec::new();
     
@@ -366,6 +434,7 @@ fn deserialize_profile(serialized: SerializedProfile, project_path: &Path) -> Re
         })
 }
 
+#[cfg(unix)]
 fn create_minimal_profile(project_path: PathBuf) -> Result<gaol::profile::Profile> {
     let operations = vec![
         gaol::profile::Operation::FileReadAll(

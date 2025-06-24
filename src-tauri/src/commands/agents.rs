@@ -996,8 +996,16 @@ pub async fn execute_agent(
                     Ok(build_result) => {
                         
                         // Create the enhanced sandbox executor
+                        #[cfg(unix)]
                         let executor = crate::sandbox::executor::SandboxExecutor::new_with_serialization(
                             build_result.profile,
+                            project_path_buf.clone(),
+                            build_result.serialized
+                        );
+                        
+                        #[cfg(not(unix))]
+                        let executor = crate::sandbox::executor::SandboxExecutor::new_with_serialization(
+                            (),
                             project_path_buf.clone(),
                             build_result.serialized
                         );

@@ -2,7 +2,9 @@
 //! 
 //! This file integrates all the sandbox test modules and provides
 //! a central location for running the comprehensive test suite.
-#[path = "sandbox/mod.rs"]
+#![allow(dead_code)]
+
+#[cfg(unix)]
 mod sandbox;
 
 // Re-export test modules to make them discoverable

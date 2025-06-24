@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+#[cfg(unix)]
 use gaol::profile::{AddressPattern, Operation, OperationSupport, PathPattern, Profile};
 use log::{debug, info, warn};
 use rusqlite::{params, Connection};
@@ -33,7 +34,10 @@ pub struct SandboxRule {
 
 /// Result of building a profile
 pub struct ProfileBuildResult {
+    #[cfg(unix)]
     pub profile: Profile,
+    #[cfg(not(unix))]
+    pub profile: (),  // Placeholder for Windows
     pub serialized: SerializedProfile,
 }
 
@@ -60,7 +64,10 @@ impl ProfileBuilder {
         // If sandbox is completely disabled, return an empty profile
         if !sandbox_enabled {
             return Ok(ProfileBuildResult {
+                #[cfg(unix)]
                 profile: Profile::new(vec![]).map_err(|_| anyhow::anyhow!("Failed to create empty profile"))?,
+                #[cfg(not(unix))]
+                profile: (),
                 serialized: SerializedProfile { operations: vec![] },
             });
         }
@@ -112,72 +119,107 @@ impl ProfileBuilder {
     }
     
     /// Build a gaol Profile from database rules
+    #[cfg(unix)]
     pub fn build_profile(&self, rules: Vec<SandboxRule>) -> Result<Profile> {
         let result = self.build_profile_with_serialization(rules)?;
         Ok(result.profile)
     }
     
+    /// Build a gaol Profile from database rules (Windows stub)
+    #[cfg(not(unix))]
+    pub fn build_profile(&self, _rules: Vec<SandboxRule>) -> Result<()> {
+        warn!("Sandbox profiles are not supported on Windows");
+        Ok(())
+    }
+    
     /// Build a gaol Profile from database rules and return serialized operations
     pub fn build_profile_with_serialization(&self, rules: Vec<SandboxRule>) -> Result<ProfileBuildResult> {
-        let mut operations = Vec::new();
-        let mut serialized_operations = Vec::new();
-        
-        for rule in rules {
-            if !rule.enabled {
-                continue;
-            }
+        #[cfg(unix)]
+        {
+            let mut operations = Vec::new();
+            let mut serialized_operations = Vec::new();
             
-            // Check platform support
-            if !self.is_rule_supported_on_platform(&rule) {
-                debug!("Skipping rule {} - not supported on current platform", rule.operation_type);
-                continue;
-            }
-            
-            match self.build_operation_with_serialization(&rule) {
-                Ok(Some((op, serialized))) => {
-                    // Check if operation is supported on current platform
-                    if matches!(op.support(), gaol::profile::OperationSupportLevel::CanBeAllowed) {
-                        operations.push(op);
-                        serialized_operations.push(serialized);
-                    } else {
-                        warn!("Operation {:?} not supported at desired level on current platform", rule.operation_type);
+            for rule in rules {
+                if !rule.enabled {
+                    continue;
+                }
+                
+                // Check platform support
+                if !self.is_rule_supported_on_platform(&rule) {
+                    debug!("Skipping rule {} - not supported on current platform", rule.operation_type);
+                    continue;
+                }
+                
+                match self.build_operation_with_serialization(&rule) {
+                    Ok(Some((op, serialized))) => {
+                        // Check if operation is supported on current platform
+                        if matches!(op.support(), gaol::profile::OperationSupportLevel::CanBeAllowed) {
+                            operations.push(op);
+                            serialized_operations.push(serialized);
+                        } else {
+                            warn!("Operation {:?} not supported at desired level on current platform", rule.operation_type);
+                        }
+                    },
+                    Ok(None) => {
+                        debug!("Skipping unsupported operation type: {}", rule.operation_type);
+                    },
+                    Err(e) => {
+                        warn!("Failed to build operation for rule {}: {}", rule.id.unwrap_or(0), e);
                     }
-                },
-                Ok(None) => {
-                    debug!("Skipping unsupported operation type: {}", rule.operation_type);
-                },
-                Err(e) => {
-                    warn!("Failed to build operation for rule {}: {}", rule.id.unwrap_or(0), e);
                 }
             }
-        }
-        
-        // Ensure project path access is included
-        let has_project_access = serialized_operations.iter().any(|op| {
-            matches!(op, SerializedOperation::FileReadAll { path, is_subpath: true } if path == &self.project_path)
-        });
-        
-        if !has_project_access {
-            operations.push(Operation::FileReadAll(PathPattern::Subpath(self.project_path.clone())));
-            serialized_operations.push(SerializedOperation::FileReadAll {
-                path: self.project_path.clone(),
-                is_subpath: true,
+            
+            // Ensure project path access is included
+            let has_project_access = serialized_operations.iter().any(|op| {
+                matches!(op, SerializedOperation::FileReadAll { path, is_subpath: true } if path == &self.project_path)
             });
+            
+            if !has_project_access {
+                operations.push(Operation::FileReadAll(PathPattern::Subpath(self.project_path.clone())));
+                serialized_operations.push(SerializedOperation::FileReadAll {
+                    path: self.project_path.clone(),
+                    is_subpath: true,
+                });
+            }
+            
+            // Create the profile
+            let profile = Profile::new(operations)
+                .map_err(|_| anyhow::anyhow!("Failed to create sandbox profile - some operations may not be supported on this platform"))?;
+            
+            Ok(ProfileBuildResult {
+                profile,
+                serialized: SerializedProfile {
+                    operations: serialized_operations,
+                },
+            })
         }
         
-        // Create the profile
-        let profile = Profile::new(operations)
-            .map_err(|_| anyhow::anyhow!("Failed to create sandbox profile - some operations may not be supported on this platform"))?;
-        
-        Ok(ProfileBuildResult {
-            profile,
-            serialized: SerializedProfile {
-                operations: serialized_operations,
-            },
-        })
+        #[cfg(not(unix))]
+        {
+            // On Windows, we just create a serialized profile without actual sandboxing
+            let mut serialized_operations = Vec::new();
+            
+            for rule in rules {
+                if !rule.enabled {
+                    continue;
+                }
+                
+                if let Ok(Some(serialized)) = self.build_serialized_operation(&rule) {
+                    serialized_operations.push(serialized);
+                }
+            }
+            
+            Ok(ProfileBuildResult {
+                profile: (),
+                serialized: SerializedProfile {
+                    operations: serialized_operations,
+                },
+            })
+        }
     }
     
     /// Build a gaol Operation from a database rule
+    #[cfg(unix)]
     fn build_operation(&self, rule: &SandboxRule) -> Result<Option<Operation>> {
         match self.build_operation_with_serialization(rule) {
             Ok(Some((op, _))) => Ok(Some(op)),
@@ -187,6 +229,7 @@ impl ProfileBuilder {
     }
     
     /// Build a gaol Operation and its serialized form from a database rule
+    #[cfg(unix)]
     fn build_operation_with_serialization(&self, rule: &SandboxRule) -> Result<Option<(Operation, SerializedOperation)>> {
         match rule.operation_type.as_str() {
             "file_read_all" => {
@@ -218,12 +261,14 @@ impl ProfileBuilder {
     }
     
     /// Build a PathPattern from pattern type and value
+    #[cfg(unix)]
     fn build_path_pattern(&self, pattern_type: &str, pattern_value: &str) -> Result<PathPattern> {
         let (pattern, _, _) = self.build_path_pattern_with_info(pattern_type, pattern_value)?;
         Ok(pattern)
     }
     
     /// Build a PathPattern and return additional info for serialization
+    #[cfg(unix)]
     fn build_path_pattern_with_info(&self, pattern_type: &str, pattern_value: &str) -> Result<(PathPattern, PathBuf, bool)> {
         // Replace template variables
         let expanded_value = pattern_value
@@ -240,12 +285,14 @@ impl ProfileBuilder {
     }
     
     /// Build an AddressPattern from pattern type and value
+    #[cfg(unix)]
     fn build_address_pattern(&self, pattern_type: &str, pattern_value: &str) -> Result<AddressPattern> {
         let (pattern, _) = self.build_address_pattern_with_serialization(pattern_type, pattern_value)?;
         Ok(pattern)
     }
     
     /// Build an AddressPattern and its serialized form
+    #[cfg(unix)]
     fn build_address_pattern_with_serialization(&self, pattern_type: &str, pattern_value: &str) -> Result<(AddressPattern, SerializedOperation)> {
         match pattern_type {
             "all" => Ok((
@@ -281,6 +328,59 @@ impl ProfileBuilder {
         }
         // If no platform support specified, assume it's supported
         true
+    }
+
+    /// Build only the serialized operation (for Windows)
+    #[cfg(not(unix))]
+    fn build_serialized_operation(&self, rule: &SandboxRule) -> Result<Option<SerializedOperation>> {
+        let pattern_value = self.expand_pattern_value(&rule.pattern_value);
+        
+        match rule.operation_type.as_str() {
+            "file_read_all" => {
+                let (path, is_subpath) = self.parse_path_pattern(&rule.pattern_type, &pattern_value)?;
+                Ok(Some(SerializedOperation::FileReadAll { path, is_subpath }))
+            }
+            "file_read_metadata" => {
+                let (path, is_subpath) = self.parse_path_pattern(&rule.pattern_type, &pattern_value)?;
+                Ok(Some(SerializedOperation::FileReadMetadata { path, is_subpath }))
+            }
+            "network_outbound" => {
+                Ok(Some(SerializedOperation::NetworkOutbound { pattern: pattern_value }))
+            }
+            "network_tcp" => {
+                let port = pattern_value.parse::<u16>()
+                    .context("Invalid TCP port")?;
+                Ok(Some(SerializedOperation::NetworkTcp { port }))
+            }
+            "network_local_socket" => {
+                let path = PathBuf::from(pattern_value);
+                Ok(Some(SerializedOperation::NetworkLocalSocket { path }))
+            }
+            "system_info_read" => {
+                Ok(Some(SerializedOperation::SystemInfoRead))
+            }
+            _ => Ok(None),
+        }
+    }
+    
+    /// Helper method to expand pattern values (Windows version)
+    #[cfg(not(unix))]
+    fn expand_pattern_value(&self, pattern_value: &str) -> String {
+        pattern_value
+            .replace("{{PROJECT_PATH}}", &self.project_path.to_string_lossy())
+            .replace("{{HOME}}", &self.home_dir.to_string_lossy())
+    }
+    
+    /// Helper method to parse path patterns (Windows version)
+    #[cfg(not(unix))]
+    fn parse_path_pattern(&self, pattern_type: &str, pattern_value: &str) -> Result<(PathBuf, bool)> {
+        let path = PathBuf::from(pattern_value);
+        
+        match pattern_type {
+            "literal" => Ok((path, false)),
+            "subpath" => Ok((path, true)),
+            _ => Err(anyhow::anyhow!("Unknown path pattern type: {}", pattern_type))
+        }
     }
 }
 
@@ -351,6 +451,7 @@ pub fn load_profile_rules(conn: &Connection, profile_id: i64) -> Result<Vec<Sand
 }
 
 /// Get or create the gaol Profile for execution
+#[cfg(unix)]
 pub fn get_gaol_profile(conn: &Connection, profile_id: Option<i64>, project_path: PathBuf) -> Result<Profile> {
     // Load the profile
     let profile = if let Some(id) = profile_id {
@@ -368,4 +469,11 @@ pub fn get_gaol_profile(conn: &Connection, profile_id: Option<i64>, project_path
     // Build the gaol profile
     let builder = ProfileBuilder::new(project_path)?;
     builder.build_profile(rules)
+}
+
+/// Get or create the gaol Profile for execution (Windows stub)
+#[cfg(not(unix))]
+pub fn get_gaol_profile(_conn: &Connection, _profile_id: Option<i64>, _project_path: PathBuf) -> Result<()> {
+    warn!("Sandbox profiles are not supported on Windows");
+    Ok(())
 } 
