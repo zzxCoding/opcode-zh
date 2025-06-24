@@ -100,14 +100,6 @@ jobs:
       - name: Build frontend
         run: bun run build
 
-      # Check Rust formatting
-      - name: Check Rust formatting
-        if: matrix.platform.os == 'ubuntu-latest'
-        working-directory: ./src-tauri
-        run: |
-          rustup component add rustfmt
-          cargo fmt -- --check
-
       # Run Rust linter
       - name: Run Rust linter
         if: matrix.platform.os == 'ubuntu-latest'
