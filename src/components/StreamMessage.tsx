@@ -75,14 +75,6 @@ const StreamMessageComponent: React.FC<StreamMessageProps> = ({ message, classNa
     return toolResults.get(toolId) || null;
   };
   
-  // Debug logging to understand message structure
-  console.log('[StreamMessage] Rendering message:', {
-    type: message.type,
-    hasMessage: !!message.message,
-    messageStructure: message.message ? Object.keys(message.message) : 'no message field',
-    fullMessage: message
-  });
-  
   try {
     // Skip rendering for meta messages that don't have meaningful content
     if (message.isMeta && !message.leafUuid && !message.summary) {
