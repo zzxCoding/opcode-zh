@@ -1,5 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 
+/** Process type for tracking in ProcessRegistry */
+export type ProcessType = 
+  | { AgentRun: { agent_id: number; agent_name: string } }
+  | { ClaudeSession: { session_id: string } };
+
+/** Information about a running process */
+export interface ProcessInfo {
+  run_id: number;
+  process_type: ProcessType;
+  pid: number;
+  started_at: string;
+  project_path: string;
+  task: string;
+  model: string;
+}
+
 /**
  * Represents a project in the ~/.claude/projects directory
  */
@@ -1043,6 +1059,23 @@ export const api = {
    */
   async cancelClaudeExecution(sessionId?: string): Promise<void> {
     return invoke("cancel_claude_execution", { sessionId });
+  },
+
+  /**
+   * Lists all currently running Claude sessions
+   * @returns Promise resolving to list of running Claude sessions
+   */
+  async listRunningClaudeSessions(): Promise<any[]> {
+    return invoke("list_running_claude_sessions");
+  },
+
+  /**
+   * Gets live output from a Claude session
+   * @param sessionId - The session ID to get output for
+   * @returns Promise resolving to the current live output
+   */
+  async getClaudeSessionOutput(sessionId: string): Promise<string> {
+    return invoke("get_claude_session_output", { sessionId });
   },
 
   /**

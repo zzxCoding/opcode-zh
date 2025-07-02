@@ -49,6 +49,10 @@ interface ClaudeCodeSessionProps {
    * Optional className for styling
    */
   className?: string;
+  /**
+   * Callback when streaming state changes
+   */
+  onStreamingChange?: (isStreaming: boolean, sessionId: string | null) => void;
 }
 
 /**
@@ -62,6 +66,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   initialProjectPath = "",
   onBack,
   className,
+  onStreamingChange,
 }) => {
   const [projectPath, setProjectPath] = useState(initialProjectPath || session?.project_path || "");
   const [messages, setMessages] = useState<ClaudeStreamMessage[]>([]);
@@ -196,6 +201,16 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     }
   }, [session]);
 
+  // Report streaming state changes
+  useEffect(() => {
+    onStreamingChange?.(isLoading, claudeSessionId);
+  }, [isLoading, claudeSessionId, onStreamingChange]);
+
+  // Check for active Claude sessions on mount
+  useEffect(() => {
+    checkForActiveSession();
+  }, []);
+
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -244,6 +259,89 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const checkForActiveSession = async () => {
+    // If we have a session prop, check if it's still active
+    if (session) {
+      try {
+        const activeSessions = await api.listRunningClaudeSessions();
+        const activeSession = activeSessions.find((s: any) => {
+          if ('process_type' in s && s.process_type && 'ClaudeSession' in s.process_type) {
+            return (s.process_type as any).ClaudeSession.session_id === session.id;
+          }
+          return false;
+        });
+        
+        if (activeSession) {
+          // Session is still active, reconnect to its stream
+          console.log('[ClaudeCodeSession] Found active session, reconnecting:', session.id);
+          setClaudeSessionId(session.id);
+          
+          // Get any buffered output
+          const bufferedOutput = await api.getClaudeSessionOutput(session.id);
+          if (bufferedOutput) {
+            // Parse and add buffered messages
+            const lines = bufferedOutput.split('\n').filter((line: string) => line.trim());
+            for (const line of lines) {
+              try {
+                const message = JSON.parse(line) as ClaudeStreamMessage;
+                setMessages(prev => [...prev, message]);
+                setRawJsonlOutput(prev => [...prev, line]);
+              } catch (err) {
+                console.error('Failed to parse buffered message:', err);
+              }
+            }
+          }
+          
+          // Set up listeners for the active session
+          reconnectToSession(session.id);
+        }
+      } catch (err) {
+        console.error('Failed to check for active sessions:', err);
+      }
+    }
+  };
+
+  const reconnectToSession = async (sessionId: string) => {
+    console.log('[ClaudeCodeSession] Reconnecting to session:', sessionId);
+    
+    // Clean up previous listeners
+    unlistenRefs.current.forEach(unlisten => unlisten());
+    unlistenRefs.current = [];
+    
+    // Set up session-specific listeners
+    const outputUnlisten = await listen<string>(`claude-output:${sessionId}`, async (event) => {
+      try {
+        console.log('[ClaudeCodeSession] Received claude-output on reconnect:', event.payload);
+        
+        // Store raw JSONL
+        setRawJsonlOutput(prev => [...prev, event.payload]);
+        
+        // Parse and display
+        const message = JSON.parse(event.payload) as ClaudeStreamMessage;
+        setMessages(prev => [...prev, message]);
+      } catch (err) {
+        console.error("Failed to parse message:", err, event.payload);
+      }
+    });
+
+    const errorUnlisten = await listen<string>(`claude-error:${sessionId}`, (event) => {
+      console.error("Claude error:", event.payload);
+      setError(event.payload);
+    });
+
+    const completeUnlisten = await listen<boolean>(`claude-complete:${sessionId}`, async (event) => {
+      console.log('[ClaudeCodeSession] Received claude-complete on reconnect:', event.payload);
+      setIsLoading(false);
+      hasActiveSessionRef.current = false;
+    });
+
+    unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten];
+    
+    // Mark as loading to show the session is active
+    setIsLoading(true);
+    hasActiveSessionRef.current = true;
   };
 
   const handleSelectPath = async () => {

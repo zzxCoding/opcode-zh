@@ -4,12 +4,23 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::process::Child;
 
+/// Type of process being tracked
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProcessType {
+    AgentRun {
+        agent_id: i64,
+        agent_name: String,
+    },
+    ClaudeSession {
+        session_id: String,
+    },
+}
+
 /// Information about a running agent process
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessInfo {
     pub run_id: i64,
-    pub agent_id: i64,
-    pub agent_name: String,
+    pub process_type: ProcessType,
     pub pid: u32,
     pub started_at: DateTime<Utc>,
     pub project_path: String,
@@ -28,16 +39,26 @@ pub struct ProcessHandle {
 /// Registry for tracking active agent processes
 pub struct ProcessRegistry {
     processes: Arc<Mutex<HashMap<i64, ProcessHandle>>>, // run_id -> ProcessHandle
+    next_id: Arc<Mutex<i64>>, // Auto-incrementing ID for non-agent processes
 }
 
 impl ProcessRegistry {
     pub fn new() -> Self {
         Self {
             processes: Arc::new(Mutex::new(HashMap::new())),
+            next_id: Arc::new(Mutex::new(1000000)), // Start at high number to avoid conflicts
         }
     }
 
-    /// Register a new running process
+    /// Generate a unique ID for non-agent processes
+    pub fn generate_id(&self) -> Result<i64, String> {
+        let mut next_id = self.next_id.lock().map_err(|e| e.to_string())?;
+        let id = *next_id;
+        *next_id += 1;
+        Ok(id)
+    }
+
+    /// Register a new running agent process
     pub fn register_process(
         &self,
         run_id: i64,
@@ -49,18 +70,61 @@ impl ProcessRegistry {
         model: String,
         child: Child,
     ) -> Result<(), String> {
-        let mut processes = self.processes.lock().map_err(|e| e.to_string())?;
-
         let process_info = ProcessInfo {
             run_id,
-            agent_id,
-            agent_name,
+            process_type: ProcessType::AgentRun { agent_id, agent_name },
             pid,
             started_at: Utc::now(),
             project_path,
             task,
             model,
         };
+
+        self.register_process_internal(run_id, process_info, child)
+    }
+
+    /// Register a new Claude session (without child process - handled separately)
+    pub fn register_claude_session(
+        &self,
+        session_id: String,
+        pid: u32,
+        project_path: String,
+        task: String,
+        model: String,
+    ) -> Result<i64, String> {
+        let run_id = self.generate_id()?;
+        
+        let process_info = ProcessInfo {
+            run_id,
+            process_type: ProcessType::ClaudeSession { session_id },
+            pid,
+            started_at: Utc::now(),
+            project_path,
+            task,
+            model,
+        };
+
+        // Register without child - Claude sessions use ClaudeProcessState for process management
+        let mut processes = self.processes.lock().map_err(|e| e.to_string())?;
+        
+        let process_handle = ProcessHandle {
+            info: process_info,
+            child: Arc::new(Mutex::new(None)), // No child handle for Claude sessions
+            live_output: Arc::new(Mutex::new(String::new())),
+        };
+
+        processes.insert(run_id, process_handle);
+        Ok(run_id)
+    }
+
+    /// Internal method to register any process
+    fn register_process_internal(
+        &self,
+        run_id: i64,
+        process_info: ProcessInfo,
+        child: Child,
+    ) -> Result<(), String> {
+        let mut processes = self.processes.lock().map_err(|e| e.to_string())?;
 
         let process_handle = ProcessHandle {
             info: process_info,
@@ -70,6 +134,34 @@ impl ProcessRegistry {
 
         processes.insert(run_id, process_handle);
         Ok(())
+    }
+
+    /// Get all running Claude sessions
+    pub fn get_running_claude_sessions(&self) -> Result<Vec<ProcessInfo>, String> {
+        let processes = self.processes.lock().map_err(|e| e.to_string())?;
+        Ok(processes
+            .values()
+            .filter_map(|handle| {
+                match &handle.info.process_type {
+                    ProcessType::ClaudeSession { .. } => Some(handle.info.clone()),
+                    _ => None,
+                }
+            })
+            .collect())
+    }
+
+    /// Get a specific Claude session by session ID
+    pub fn get_claude_session_by_id(&self, session_id: &str) -> Result<Option<ProcessInfo>, String> {
+        let processes = self.processes.lock().map_err(|e| e.to_string())?;
+        Ok(processes
+            .values()
+            .find(|handle| {
+                match &handle.info.process_type {
+                    ProcessType::ClaudeSession { session_id: sid } => sid == session_id,
+                    _ => false,
+                }
+            })
+            .map(|handle| handle.info.clone()))
     }
 
     /// Unregister a process (called when it completes)
@@ -87,6 +179,20 @@ impl ProcessRegistry {
         Ok(processes
             .values()
             .map(|handle| handle.info.clone())
+            .collect())
+    }
+
+    /// Get all running agent processes
+    pub fn get_running_agent_processes(&self) -> Result<Vec<ProcessInfo>, String> {
+        let processes = self.processes.lock().map_err(|e| e.to_string())?;
+        Ok(processes
+            .values()
+            .filter_map(|handle| {
+                match &handle.info.process_type {
+                    ProcessType::AgentRun { .. } => Some(handle.info.clone()),
+                    _ => None,
+                }
+            })
             .collect())
     }
 
