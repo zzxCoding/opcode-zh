@@ -792,17 +792,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
     // Keep the previewUrl so it can be restored when reopening
   };
 
-  const handlePreviewScreenshot = async (imagePath: string) => {
-    console.log("Screenshot captured:", imagePath);
-    
-    // Add the screenshot to the floating prompt input
-    if (floatingPromptRef.current) {
-      floatingPromptRef.current.addImage(imagePath);
-      
-      // Show a subtle animation/feedback that the image was added
-      // You could add a toast notification here if desired
-    }
-  };
+
 
   const handlePreviewUrlChange = (url: string) => {
     console.log('[ClaudeCodeSession] Preview URL changed to:', url);
@@ -951,7 +941,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           <WebviewPreview
             initialUrl={previewUrl}
             onClose={handleClosePreview}
-            onScreenshot={handlePreviewScreenshot}
             isMaximized={isPreviewMaximized}
             onToggleMaximize={handleTogglePreviewMaximize}
             onUrlChange={handlePreviewUrlChange}
@@ -1101,7 +1090,6 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                 <WebviewPreview
                   initialUrl={previewUrl}
                   onClose={handleClosePreview}
-                  onScreenshot={handlePreviewScreenshot}
                   isMaximized={isPreviewMaximized}
                   onToggleMaximize={handleTogglePreviewMaximize}
                   onUrlChange={handlePreviewUrlChange}

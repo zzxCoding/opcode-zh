@@ -5,7 +5,6 @@ use reqwest;
 use rusqlite::{params, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
