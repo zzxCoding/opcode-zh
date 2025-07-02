@@ -917,25 +917,41 @@ pub async fn cancel_claude_execution(
         session_id
     );
 
-    let killed = if let Some(sid) = &session_id {
-        // Try to find and kill via ProcessRegistry first
-        let registry = app.state::<crate::process::ProcessRegistryState>();
-        if let Ok(Some(process_info)) = registry.0.get_claude_session_by_id(sid) {
-            match registry.0.kill_process(process_info.run_id).await {
-                Ok(success) => success,
-                Err(e) => {
-                    log::warn!("Failed to kill via registry: {}", e);
-                    false
-                }
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    };
+    let mut killed = false;
+    let mut attempted_methods = Vec::new();
 
-    // If registry kill didn't work, try the legacy approach
+    // Method 1: Try to find and kill via ProcessRegistry using session ID
+    if let Some(sid) = &session_id {
+        let registry = app.state::<crate::process::ProcessRegistryState>();
+        match registry.0.get_claude_session_by_id(sid) {
+            Ok(Some(process_info)) => {
+                log::info!("Found process in registry for session {}: run_id={}, PID={}", 
+                    sid, process_info.run_id, process_info.pid);
+                match registry.0.kill_process(process_info.run_id).await {
+                    Ok(success) => {
+                        if success {
+                            log::info!("Successfully killed process via registry");
+                            killed = true;
+                        } else {
+                            log::warn!("Registry kill returned false");
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to kill via registry: {}", e);
+                    }
+                }
+                attempted_methods.push("registry");
+            }
+            Ok(None) => {
+                log::warn!("Session {} not found in ProcessRegistry", sid);
+            }
+            Err(e) => {
+                log::error!("Error querying ProcessRegistry: {}", e);
+            }
+        }
+    }
+
+    // Method 2: Try the legacy approach via ClaudeProcessState
     if !killed {
         let claude_state = app.state::<ClaudeProcessState>();
         let mut current_process = claude_state.current_process.lock().await;
@@ -943,24 +959,57 @@ pub async fn cancel_claude_execution(
         if let Some(mut child) = current_process.take() {
             // Try to get the PID before killing
             let pid = child.id();
-            log::info!("Attempting to kill Claude process with PID: {:?}", pid);
+            log::info!("Attempting to kill Claude process via ClaudeProcessState with PID: {:?}", pid);
 
             // Kill the process
             match child.kill().await {
                 Ok(_) => {
-                    log::info!("Successfully killed Claude process");
+                    log::info!("Successfully killed Claude process via ClaudeProcessState");
+                    killed = true;
                 }
                 Err(e) => {
-                    log::error!("Failed to kill Claude process: {}", e);
-                    return Err(format!("Failed to kill Claude process: {}", e));
+                    log::error!("Failed to kill Claude process via ClaudeProcessState: {}", e);
+                    
+                    // Method 3: If we have a PID, try system kill as last resort
+                    if let Some(pid) = pid {
+                        log::info!("Attempting system kill as last resort for PID: {}", pid);
+                        let kill_result = if cfg!(target_os = "windows") {
+                            std::process::Command::new("taskkill")
+                                .args(["/F", "/PID", &pid.to_string()])
+                                .output()
+                        } else {
+                            std::process::Command::new("kill")
+                                .args(["-KILL", &pid.to_string()])
+                                .output()
+                        };
+                        
+                        match kill_result {
+                            Ok(output) if output.status.success() => {
+                                log::info!("Successfully killed process via system command");
+                                killed = true;
+                            }
+                            Ok(output) => {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                log::error!("System kill failed: {}", stderr);
+                            }
+                            Err(e) => {
+                                log::error!("Failed to execute system kill command: {}", e);
+                            }
+                        }
+                    }
                 }
             }
+            attempted_methods.push("claude_state");
         } else {
-            log::warn!("No active Claude process to cancel");
+            log::warn!("No active Claude process in ClaudeProcessState");
         }
     }
 
-    // Emit cancellation events
+    if !killed && attempted_methods.is_empty() {
+        log::warn!("No active Claude process found to cancel");
+    }
+
+    // Always emit cancellation events for UI consistency
     if let Some(sid) = session_id {
         let _ = app.emit(&format!("claude-cancelled:{}", sid), true);
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -971,6 +1020,12 @@ pub async fn cancel_claude_execution(
     let _ = app.emit("claude-cancelled", true);
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     let _ = app.emit("claude-complete", false);
+    
+    if killed {
+        log::info!("Claude process cancellation completed successfully");
+    } else if !attempted_methods.is_empty() {
+        log::warn!("Claude process cancellation attempted but process may have already exited. Attempted methods: {:?}", attempted_methods);
+    }
     
     Ok(())
 }
@@ -2063,3 +2118,4 @@ pub async fn track_session_messages(
     }
     Ok(())
 }
+

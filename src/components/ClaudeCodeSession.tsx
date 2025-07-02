@@ -606,7 +606,25 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       setError(null);
     } catch (err) {
       console.error("Failed to cancel execution:", err);
-      setError("Failed to cancel execution");
+      
+      // Even if backend fails, we should update UI to reflect stopped state
+      // Add error message but still stop the UI loading state
+      const errorMessage: ClaudeStreamMessage = {
+        type: "system",
+        subtype: "error",
+        result: `Failed to cancel execution: ${err instanceof Error ? err.message : 'Unknown error'}. The process may still be running in the background.`,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      
+      // Clean up listeners anyway
+      unlistenRefs.current.forEach(unlisten => unlisten());
+      unlistenRefs.current = [];
+      
+      // Reset states to allow user to continue
+      setIsLoading(false);
+      hasActiveSessionRef.current = false;
+      setError(null);
     } finally {
       setIsCancelling(false);
     }

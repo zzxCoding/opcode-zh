@@ -213,6 +213,7 @@ impl ProcessRegistry {
             if let Some(handle) = processes.get(&run_id) {
                 (handle.info.pid, handle.child.clone())
             } else {
+                warn!("Process {} not found in registry", run_id);
                 return Ok(false); // Process not found
             }
         };
@@ -233,16 +234,25 @@ impl ProcessRegistry {
                     }
                     Err(e) => {
                         error!("Failed to send kill signal to process {}: {}", run_id, e);
-                        return Err(format!("Failed to kill process: {}", e));
+                        // Don't return error here, try fallback method
+                        false
                     }
                 }
             } else {
-                false // Process already killed
+                warn!("No child handle available for process {} (PID: {}), attempting system kill", run_id, pid);
+                false // Process handle not available, try fallback
             }
         };
 
+        // If direct kill didn't work, try system command as fallback
         if !kill_sent {
-            return Ok(false);
+            info!("Attempting fallback kill for process {} (PID: {})", run_id, pid);
+            match self.kill_process_by_pid(run_id, pid) {
+                Ok(true) => return Ok(true),
+                Ok(false) => warn!("Fallback kill also failed for process {} (PID: {})", run_id, pid),
+                Err(e) => error!("Error during fallback kill: {}", e),
+            }
+            // Continue with the rest of the cleanup even if fallback failed
         }
 
         // Wait for the process to exit (with timeout)
@@ -297,6 +307,8 @@ impl ProcessRegistry {
                 if let Ok(mut child_guard) = child_arc.lock() {
                     *child_guard = None;
                 }
+                // One more attempt with system kill
+                let _ = self.kill_process_by_pid(run_id, pid);
             }
         }
 
