@@ -798,15 +798,8 @@ pub async fn execute_claude_code(
         model
     );
 
-    // Check if sandboxing should be used
-    let use_sandbox = should_use_sandbox(&app)?;
-
-    let mut cmd = if use_sandbox {
-        create_sandboxed_claude_command(&app, &project_path)?
-    } else {
-        let claude_path = find_claude_binary(&app)?;
-        create_command_with_env(&claude_path)
-    };
+    let claude_path = find_claude_binary(&app)?;
+    let mut cmd = create_command_with_env(&claude_path);
 
     cmd.arg("-p")
         .arg(&prompt)
@@ -837,15 +830,8 @@ pub async fn continue_claude_code(
         model
     );
 
-    // Check if sandboxing should be used
-    let use_sandbox = should_use_sandbox(&app)?;
-
-    let mut cmd = if use_sandbox {
-        create_sandboxed_claude_command(&app, &project_path)?
-    } else {
-        let claude_path = find_claude_binary(&app)?;
-        create_command_with_env(&claude_path)
-    };
+    let claude_path = find_claude_binary(&app)?;
+    let mut cmd = create_command_with_env(&claude_path);
 
     cmd.arg("-c") // Continue flag
         .arg("-p")
@@ -879,15 +865,8 @@ pub async fn resume_claude_code(
         model
     );
 
-    // Check if sandboxing should be used
-    let use_sandbox = should_use_sandbox(&app)?;
-
-    let mut cmd = if use_sandbox {
-        create_sandboxed_claude_command(&app, &project_path)?
-    } else {
-        let claude_path = find_claude_binary(&app)?;
-        create_command_with_env(&claude_path)
-    };
+    let claude_path = find_claude_binary(&app)?;
+    let mut cmd = create_command_with_env(&claude_path);
 
     cmd.arg("--resume")
         .arg(&session_id)
@@ -1052,200 +1031,8 @@ pub async fn get_claude_session_output(
     }
 }
 
-/// Helper function to check if sandboxing should be used based on settings
-fn should_use_sandbox(app: &AppHandle) -> Result<bool, String> {
-    // First check if sandboxing is even available on this platform
-    if !crate::sandbox::platform::is_sandboxing_available() {
-        log::info!("Sandboxing not available on this platform");
-        return Ok(false);
-    }
 
-    // Check if a setting exists to enable/disable sandboxing
-    let settings = get_claude_settings_sync(app)?;
 
-    // Check for a sandboxing setting in the settings
-    if let Some(sandbox_enabled) = settings
-        .data
-        .get("sandboxEnabled")
-        .and_then(|v| v.as_bool())
-    {
-        return Ok(sandbox_enabled);
-    }
-
-    // Default to true (sandboxing enabled) on supported platforms
-    Ok(true)
-}
-
-/// Helper function to create a sandboxed Claude command
-fn create_sandboxed_claude_command(app: &AppHandle, project_path: &str) -> Result<Command, String> {
-    use crate::sandbox::{executor::create_sandboxed_command, profile::ProfileBuilder};
-    use std::path::PathBuf;
-
-    // Get the database connection
-    let conn = {
-        let app_data_dir = app
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        let db_path = app_data_dir.join("agents.db");
-        rusqlite::Connection::open(&db_path)
-            .map_err(|e| format!("Failed to open database: {}", e))?
-    };
-
-    // Query for the default active sandbox profile
-    let profile_id: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM sandbox_profiles WHERE is_default = 1 AND is_active = 1",
-            [],
-            |row| row.get(0),
-        )
-        .ok();
-
-    match profile_id {
-        Some(profile_id) => {
-            log::info!(
-                "Using default sandbox profile: {} (id: {})",
-                profile_id,
-                profile_id
-            );
-
-            // Get all rules for this profile
-            let mut stmt = conn
-                .prepare(
-                    "SELECT operation_type, pattern_type, pattern_value, enabled, platform_support 
-                 FROM sandbox_rules WHERE profile_id = ?1 AND enabled = 1",
-                )
-                .map_err(|e| e.to_string())?;
-
-            let rules = stmt
-                .query_map(rusqlite::params![profile_id], |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                        row.get::<_, bool>(3)?,
-                        row.get::<_, Option<String>>(4)?,
-                    ))
-                })
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-
-            log::info!("Building sandbox profile with {} rules", rules.len());
-
-            // Build the gaol profile
-            let project_path_buf = PathBuf::from(project_path);
-
-            match ProfileBuilder::new(project_path_buf.clone()) {
-                Ok(builder) => {
-                    // Convert database rules to SandboxRule structs
-                    let mut sandbox_rules = Vec::new();
-
-                    for (idx, (op_type, pattern_type, pattern_value, enabled, platform_support)) in
-                        rules.into_iter().enumerate()
-                    {
-                        // Check if this rule applies to the current platform
-                        if let Some(platforms_json) = &platform_support {
-                            if let Ok(platforms) =
-                                serde_json::from_str::<Vec<String>>(platforms_json)
-                            {
-                                let current_platform = if cfg!(target_os = "linux") {
-                                    "linux"
-                                } else if cfg!(target_os = "macos") {
-                                    "macos"
-                                } else if cfg!(target_os = "freebsd") {
-                                    "freebsd"
-                                } else {
-                                    "unsupported"
-                                };
-
-                                if !platforms.contains(&current_platform.to_string()) {
-                                    continue;
-                                }
-                            }
-                        }
-
-                        // Create SandboxRule struct
-                        let rule = crate::sandbox::profile::SandboxRule {
-                            id: Some(idx as i64),
-                            profile_id: 0,
-                            operation_type: op_type,
-                            pattern_type,
-                            pattern_value,
-                            enabled,
-                            platform_support,
-                            created_at: String::new(),
-                        };
-
-                        sandbox_rules.push(rule);
-                    }
-
-                    // Try to build the profile
-                    match builder.build_profile(sandbox_rules) {
-                        Ok(profile) => {
-                            log::info!("Successfully built sandbox profile '{}'", profile_id);
-
-                            // Use the helper function to create sandboxed command
-                            let claude_path = find_claude_binary(app)?;
-                            #[cfg(unix)]
-                            return Ok(create_sandboxed_command(
-                                &claude_path,
-                                &[],
-                                &project_path_buf,
-                                profile,
-                                project_path_buf.clone(),
-                            ));
-
-                            #[cfg(not(unix))]
-                            {
-                                log::warn!(
-                                    "Sandboxing not supported on Windows, using regular command"
-                                );
-                                Ok(create_command_with_env(&claude_path))
-                            }
-                        }
-                        Err(e) => {
-                            log::error!("Failed to build sandbox profile: {}, falling back to non-sandboxed", e);
-                            let claude_path = find_claude_binary(app)?;
-                            Ok(create_command_with_env(&claude_path))
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to create ProfileBuilder: {}, falling back to non-sandboxed",
-                        e
-                    );
-                    let claude_path = find_claude_binary(app)?;
-                    Ok(create_command_with_env(&claude_path))
-                }
-            }
-        }
-        None => {
-            log::info!("No default active sandbox profile found: proceeding without sandbox");
-            let claude_path = find_claude_binary(app)?;
-            Ok(create_command_with_env(&claude_path))
-        }
-    }
-}
-
-/// Synchronous version of get_claude_settings for use in non-async contexts
-fn get_claude_settings_sync(_app: &AppHandle) -> Result<ClaudeSettings, String> {
-    let claude_dir = get_claude_dir().map_err(|e| e.to_string())?;
-    let settings_path = claude_dir.join("settings.json");
-
-    if !settings_path.exists() {
-        return Ok(ClaudeSettings::default());
-    }
-
-    let content = std::fs::read_to_string(&settings_path)
-        .map_err(|e| format!("Failed to read settings file: {}", e))?;
-
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse settings JSON: {}", e))?;
-
-    Ok(ClaudeSettings { data })
-}
 
 /// Helper function to spawn Claude process and handle streaming
 async fn spawn_claude_process(app: AppHandle, mut cmd: Command, prompt: String, model: String, project_path: String) -> Result<(), String> {
