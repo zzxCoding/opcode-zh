@@ -1076,7 +1076,10 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         </motion.div>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-hidden">
+        <div className={cn(
+          "flex-1 overflow-hidden transition-all duration-300",
+          showTimeline && "sm:mr-96"
+        )}>
           {showPreview ? (
             // Split pane layout when preview is active
             <SplitPane
@@ -1241,14 +1244,19 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
             </motion.div>
           )}
 
-          <FloatingPromptInput
-            ref={floatingPromptRef}
-            onSend={handleSendPrompt}
-            onCancel={handleCancelExecution}
-            isLoading={isLoading}
-            disabled={!projectPath}
-            projectPath={projectPath}
-          />
+          <div className={cn(
+            "fixed bottom-0 left-0 right-0 transition-all duration-300 z-50",
+            showTimeline && "sm:right-96"
+          )}>
+            <FloatingPromptInput
+              ref={floatingPromptRef}
+              onSend={handleSendPrompt}
+              onCancel={handleCancelExecution}
+              isLoading={isLoading}
+              disabled={!projectPath}
+              projectPath={projectPath}
+            />
+          </div>
 
           {/* Token Counter - positioned under the Send button */}
           {totalTokens > 0 && (
@@ -1274,17 +1282,45 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         </ErrorBoundary>
 
         {/* Timeline */}
-        {showTimeline && effectiveSession && (
-          <TimelineNavigator
-            sessionId={effectiveSession.id}
-            projectId={effectiveSession.project_id}
-            projectPath={projectPath}
-            currentMessageIndex={messages.length - 1}
-            onCheckpointSelect={handleCheckpointSelect}
-            onFork={handleFork}
-            refreshVersion={timelineVersion}
-          />
-        )}
+        <AnimatePresence>
+          {showTimeline && effectiveSession && (
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l border-border shadow-xl z-30 overflow-hidden"
+            >
+              <div className="h-full flex flex-col">
+                {/* Timeline Header */}
+                <div className="flex items-center justify-between p-4 border-b border-border">
+                  <h3 className="text-lg font-semibold">Session Timeline</h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowTimeline(false)}
+                    className="h-8 w-8"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                {/* Timeline Content */}
+                <div className="flex-1 overflow-y-auto p-4">
+                  <TimelineNavigator
+                    sessionId={effectiveSession.id}
+                    projectId={effectiveSession.project_id}
+                    projectPath={projectPath}
+                    currentMessageIndex={messages.length - 1}
+                    onCheckpointSelect={handleCheckpointSelect}
+                    onFork={handleFork}
+                    refreshVersion={timelineVersion}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Fork Dialog */}
