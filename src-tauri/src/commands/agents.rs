@@ -1466,15 +1466,19 @@ pub async fn execute_agent(
 
 /// List all currently running agent sessions
 #[tauri::command]
-pub async fn list_running_sessions(db: State<'_, AgentDb>) -> Result<Vec<AgentRun>, String> {
+pub async fn list_running_sessions(
+    db: State<'_, AgentDb>,
+    registry: State<'_, crate::process::ProcessRegistryState>,
+) -> Result<Vec<AgentRun>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
 
+    // First get all running sessions from the database
     let mut stmt = conn.prepare(
         "SELECT id, agent_id, agent_name, agent_icon, task, model, project_path, session_id, status, pid, process_started_at, created_at, completed_at 
          FROM agent_runs WHERE status = 'running' ORDER BY process_started_at DESC"
     ).map_err(|e| e.to_string())?;
 
-    let runs = stmt
+    let mut runs = stmt
         .query_map([], |row| {
             Ok(AgentRun {
                 id: Some(row.get(0)?),
@@ -1501,6 +1505,27 @@ pub async fn list_running_sessions(db: State<'_, AgentDb>) -> Result<Vec<AgentRu
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+
+    drop(stmt);
+    drop(conn);
+
+    // Cross-check with the process registry to ensure accuracy
+    // Get actually running processes from the registry
+    let registry_processes = registry.0.get_running_agent_processes()?;
+    let registry_run_ids: std::collections::HashSet<i64> = registry_processes
+        .iter()
+        .map(|p| p.run_id)
+        .collect();
+
+    // Filter out any database entries that aren't actually running in the registry
+    // This handles cases where processes crashed without updating the database
+    runs.retain(|run| {
+        if let Some(run_id) = run.id {
+            registry_run_ids.contains(&run_id)
+        } else {
+            false
+        }
+    });
 
     Ok(runs)
 }

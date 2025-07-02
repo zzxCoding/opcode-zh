@@ -495,7 +495,7 @@ export const AgentExecution: React.FC<AgentExecutionProps> = ({
       {/* Fixed container that takes full height */}
       <div className="h-full flex flex-col">
         {/* Sticky Header */}
-        <div className="sticky top-0 z-10 bg-background border-b border-border">
+        <div className="sticky top-0 z-20 bg-background border-b border-border">
           <div className="w-full max-w-5xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: -20 }}
