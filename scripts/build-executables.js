@@ -4,6 +4,9 @@
  * Build script for creating single-file executables from Claude Code package
  * Uses Bun's native embedding features with all optimizations enabled
  * 
+ * Output files follow Tauri sidecar triple naming convention: name-platform-architecture
+ * Examples: claude-code-x86_64-apple-darwin, claude-code-aarch64-unknown-linux-gnu
+ * 
  * Usage:
  *   bun run build-executables.js           # Build all platforms
  *   bun run build-executables.js linux     # Build Linux executables only
@@ -21,35 +24,35 @@ import { join } from 'path';
 const PLATFORMS = {
   linux: [
     // Linux x64 - glibc
-    { target: 'bun-linux-x64', output: 'claude-code-linux-x64' },
-    { target: 'bun-linux-x64-modern', output: 'claude-code-linux-x64-modern' },
-    { target: 'bun-linux-x64-baseline', output: 'claude-code-linux-x64-baseline' },
+    { target: 'bun-linux-x64', output: 'claude-code-x86_64-unknown-linux-gnu' },
+    { target: 'bun-linux-x64-modern', output: 'claude-code-modern-x86_64-unknown-linux-gnu' },
+    { target: 'bun-linux-x64-baseline', output: 'claude-code-baseline-x86_64-unknown-linux-gnu' },
     
     // Linux ARM64 - glibc
-    { target: 'bun-linux-arm64', output: 'claude-code-linux-arm64' },
+    { target: 'bun-linux-arm64', output: 'claude-code-aarch64-unknown-linux-gnu' },
     
     // Linux x64 - musl (Alpine Linux, etc.)
-    { target: 'bun-linux-x64-musl', output: 'claude-code-linux-x64-musl' },
-    { target: 'bun-linux-x64-musl-modern', output: 'claude-code-linux-x64-musl-modern' },
-    { target: 'bun-linux-x64-musl-baseline', output: 'claude-code-linux-x64-musl-baseline' },
+    { target: 'bun-linux-x64-musl', output: 'claude-code-x86_64-unknown-linux-musl' },
+    { target: 'bun-linux-x64-musl-modern', output: 'claude-code-modern-x86_64-unknown-linux-musl' },
+    { target: 'bun-linux-x64-musl-baseline', output: 'claude-code-baseline-x86_64-unknown-linux-musl' },
     
     // Linux ARM64 - musl
-    { target: 'bun-linux-arm64-musl', output: 'claude-code-linux-arm64-musl' }
+    { target: 'bun-linux-arm64-musl', output: 'claude-code-aarch64-unknown-linux-musl' }
   ],
   macos: [
     // macOS x64
-    { target: 'bun-darwin-x64', output: 'claude-code-macos-x64' },
-    { target: 'bun-darwin-x64-modern', output: 'claude-code-macos-x64-modern' },
-    { target: 'bun-darwin-x64-baseline', output: 'claude-code-macos-x64-baseline' },
+    { target: 'bun-darwin-x64', output: 'claude-code-x86_64-apple-darwin' },
+    { target: 'bun-darwin-x64-modern', output: 'claude-code-modern-x86_64-apple-darwin' },
+    { target: 'bun-darwin-x64-baseline', output: 'claude-code-baseline-x86_64-apple-darwin' },
     
     // macOS ARM64 (Apple Silicon)
-    { target: 'bun-darwin-arm64', output: 'claude-code-macos-arm64' }
+    { target: 'bun-darwin-arm64', output: 'claude-code-aarch64-apple-darwin' }
   ],
   windows: [
     // Windows x64
-    { target: 'bun-windows-x64', output: 'claude-code-windows-x64.exe' },
-    { target: 'bun-windows-x64-modern', output: 'claude-code-windows-x64-modern.exe' },
-    { target: 'bun-windows-x64-baseline', output: 'claude-code-windows-x64-baseline.exe' }
+    { target: 'bun-windows-x64', output: 'claude-code-x86_64-pc-windows-msvc.exe' },
+    { target: 'bun-windows-x64-modern', output: 'claude-code-modern-x86_64-pc-windows-msvc.exe' },
+    { target: 'bun-windows-x64-baseline', output: 'claude-code-baseline-x86_64-pc-windows-msvc.exe' }
   ]
 };
 
@@ -109,16 +112,20 @@ async function cleanupBundledFile() {
 }
 
 async function getCurrentPlatform() {
-  const arch = process.arch === 'x64' ? 'x64' : 'arm64';
-  const platform = process.platform === 'darwin' ? 'darwin' : 
-                   process.platform === 'linux' ? 'linux' : 
-                   process.platform === 'win32' ? 'windows' : null;
+  const arch = process.arch === 'x64' ? 'x86_64' : 'aarch64';
+  let targetTriple;
   
-  if (!platform) {
+  if (process.platform === 'darwin') {
+    targetTriple = `${arch}-apple-darwin`;
+  } else if (process.platform === 'linux') {
+    targetTriple = `${arch}-unknown-linux-gnu`;
+  } else if (process.platform === 'win32') {
+    targetTriple = `${arch}-pc-windows-msvc`;
+  } else {
     throw new Error(`Unsupported platform: ${process.platform}`);
   }
   
-  return `bun-${platform}-${arch}`;
+  return targetTriple;
 }
 
 async function main() {
@@ -146,17 +153,19 @@ async function main() {
     platformsToBuild = PLATFORMS.windows;
   } else if (arg === 'current') {
     // Build only for current platform
-    const currentTarget = await getCurrentPlatform();
+    const currentTargetTriple = await getCurrentPlatform();
     const allPlatforms = [
       ...PLATFORMS.linux,
       ...PLATFORMS.macos,
       ...PLATFORMS.windows
     ];
-    const current = allPlatforms.find(p => p.target === currentTarget);
+    
+    // Find platform by matching the target triple in the output name
+    const current = allPlatforms.find(p => p.output.includes(currentTargetTriple));
     if (current) {
       platformsToBuild = [current];
     } else {
-      console.error(`Current platform ${currentTarget} not found in build targets`);
+      console.error(`Current platform ${currentTargetTriple} not found in build targets`);
       process.exit(1);
     }
   } else {
@@ -189,6 +198,7 @@ async function main() {
     console.log('\nExecutables are available in the src-tauri/binaries/ directory');
     console.log('\nNotes:');
     console.log('- All executables include embedded assets (yoga.wasm, ripgrep binaries)');
+    console.log('- File names follow Tauri sidecar triple naming convention (name-platform-architecture)');
     console.log('- Modern variants require CPUs from 2013+ (AVX2 support)');
     console.log('- Baseline variants support older CPUs (pre-2013)');
     console.log('- Musl variants are for Alpine Linux and similar distributions');
