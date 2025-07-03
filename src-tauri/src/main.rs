@@ -48,6 +48,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             // Initialize agents database
             let conn = init_database(&app.handle()).expect("Failed to initialize agents database");
@@ -160,7 +161,8 @@ fn main() {
             mcp_reset_project_choices,
             mcp_get_server_status,
             mcp_read_project_config,
-            mcp_save_project_config
+            mcp_save_project_config,
+
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

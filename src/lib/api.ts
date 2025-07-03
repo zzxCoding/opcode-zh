@@ -98,12 +98,14 @@ export interface FileEntry {
  * Represents a Claude installation found on the system
  */
 export interface ClaudeInstallation {
-  /** Full path to the Claude binary */
+  /** Full path to the Claude binary (or "claude-code" for sidecar) */
   path: string;
   /** Version string if available */
   version?: string;
-  /** Source of discovery (e.g., "nvm", "system", "homebrew", "which") */
+  /** Source of discovery (e.g., "nvm", "system", "homebrew", "which", "bundled") */
   source: string;
+  /** Type of installation */
+  installation_type: "Bundled" | "System" | "Custom";
 }
 
 // Agent API types
@@ -1481,8 +1483,6 @@ export const api = {
     }
   },
 
-
-
   /**
    * List all available Claude installations on the system
    * @returns Promise resolving to an array of Claude installations
@@ -1495,4 +1495,6 @@ export const api = {
       throw error;
     }
   },
+
+
 };

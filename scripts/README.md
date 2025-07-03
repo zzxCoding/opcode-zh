@@ -76,6 +76,7 @@ All executables are created in the `src-tauri/binaries/` directory with the foll
 - **Cross-platform**: Supports all major operating systems and architectures
 - **CPU Variants**: Modern variants for newer CPUs (2013+), baseline for compatibility
 - **Self-contained**: No external dependencies required at runtime
+- **Tauri Integration**: Automatic sidecar binary naming for seamless Tauri integration
 
 ## Requirements
 

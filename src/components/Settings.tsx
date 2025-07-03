@@ -432,7 +432,7 @@ export const Settings: React.FC<SettingsProps> = ({
                       <div>
                         <Label className="text-sm font-medium mb-2 block">Claude Code Installation</Label>
                         <p className="text-xs text-muted-foreground mb-4">
-                          Select which Claude Code installation to use
+                          Select which Claude Code installation to use. Bundled version is recommended for best compatibility.
                         </p>
                       </div>
                       <ClaudeVersionSelector
