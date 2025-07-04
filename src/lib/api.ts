@@ -926,6 +926,21 @@ export const api = {
   },
 
   /**
+   * Loads the JSONL history for a specific agent session
+   * Similar to loadSessionHistory but searches across all project directories
+   * @param sessionId - The session ID (UUID)
+   * @returns Promise resolving to array of session messages
+   */
+  async loadAgentSessionHistory(sessionId: string): Promise<any[]> {
+    try {
+      return await invoke<any[]>('load_agent_session_history', { sessionId });
+    } catch (error) {
+      console.error("Failed to load agent session history:", error);
+      throw error;
+    }
+  },
+
+  /**
    * Executes a new interactive Claude Code session with streaming output
    */
   async executeClaudeCode(projectPath: string, prompt: string, model: string): Promise<void> {

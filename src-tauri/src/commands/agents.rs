@@ -1,17 +1,19 @@
 use anyhow::Result;
 use chrono;
+use dirs;
 use log::{debug, error, info, warn};
+use regex;
 use reqwest;
 use rusqlite::{params, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use std::io::{BufRead, BufReader};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_shell::ShellExt;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, BufReader as TokioBufReader};
 use tokio::process::Command;
-use regex;
 
 /// Finds the full path to the claude binary
 /// This is necessary because macOS apps have a limited PATH environment
@@ -855,11 +857,15 @@ async fn spawn_agent_sidecar(
 
                         // Extract session ID from JSONL output
                         if let Ok(json) = serde_json::from_str::<JsonValue>(&line) {
-                            if let Some(sid) = json.get("sessionId").and_then(|s| s.as_str()) {
-                                if let Ok(mut current_session_id) = session_id_holder_clone.lock() {
-                                    if current_session_id.is_none() {
-                                        *current_session_id = Some(sid.to_string());
-                                        info!("🔑 Extracted session ID: {}", sid);
+                            // Claude Code uses "session_id" (underscore), not "sessionId"
+                            if json.get("type").and_then(|t| t.as_str()) == Some("system") &&
+                               json.get("subtype").and_then(|s| s.as_str()) == Some("init") {
+                                if let Some(sid) = json.get("session_id").and_then(|s| s.as_str()) {
+                                    if let Ok(mut current_session_id) = session_id_holder_clone.lock() {
+                                        if current_session_id.is_none() {
+                                            *current_session_id = Some(sid.to_string());
+                                            info!("🔑 Extracted session ID: {}", sid);
+                                        }
                                     }
                                 }
                             }
@@ -955,10 +961,24 @@ async fn spawn_agent_sidecar(
 
         // Update the run record with session ID and mark as completed
         if let Ok(conn) = Connection::open(&db_path) {
-            let _ = conn.execute(
+            info!("🔄 Updating database with extracted session ID: {}", extracted_session_id);
+            match conn.execute(
                 "UPDATE agent_runs SET session_id = ?1, status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?2",
                 params![extracted_session_id, run_id],
-            );
+            ) {
+                Ok(rows_affected) => {
+                    if rows_affected > 0 {
+                        info!("✅ Successfully updated agent run {} with session ID: {}", run_id, extracted_session_id);
+                    } else {
+                        warn!("⚠️ No rows affected when updating agent run {} with session ID", run_id);
+                    }
+                }
+                Err(e) => {
+                    error!("❌ Failed to update agent run {} with session ID: {}", run_id, e);
+                }
+            }
+        } else {
+            error!("❌ Failed to open database to update session ID for run {}", run_id);
         }
 
         info!("✅ Claude sidecar execution monitoring complete");
@@ -1017,8 +1037,8 @@ async fn spawn_agent_system(
     info!("📡 Set up stdout/stderr readers");
 
     // Create readers
-    let stdout_reader = BufReader::new(stdout);
-    let stderr_reader = BufReader::new(stderr);
+    let stdout_reader = TokioBufReader::new(stdout);
+    let stderr_reader = TokioBufReader::new(stderr);
 
     // Shared state for collecting session ID and live output
     let session_id = std::sync::Arc::new(Mutex::new(String::new()));
@@ -1067,11 +1087,15 @@ async fn spawn_agent_system(
 
             // Extract session ID from JSONL output
             if let Ok(json) = serde_json::from_str::<JsonValue>(&line) {
-                if let Some(sid) = json.get("sessionId").and_then(|s| s.as_str()) {
-                    if let Ok(mut current_session_id) = session_id_clone.lock() {
-                        if current_session_id.is_empty() {
-                            *current_session_id = sid.to_string();
-                            info!("🔑 Extracted session ID: {}", sid);
+                // Claude Code uses "session_id" (underscore), not "sessionId"
+                if json.get("type").and_then(|t| t.as_str()) == Some("system") &&
+                   json.get("subtype").and_then(|s| s.as_str()) == Some("init") {
+                    if let Some(sid) = json.get("session_id").and_then(|s| s.as_str()) {
+                        if let Ok(mut current_session_id) = session_id_clone.lock() {
+                            if current_session_id.is_empty() {
+                                *current_session_id = sid.to_string();
+                                info!("🔑 Extracted session ID: {}", sid);
+                            }
                         }
                     }
                 }
@@ -1232,10 +1256,24 @@ async fn spawn_agent_system(
 
         // Update the run record with session ID and mark as completed - open a new connection
         if let Ok(conn) = Connection::open(&db_path) {
-            let _ = conn.execute(
+            info!("🔄 Updating database with extracted session ID: {}", extracted_session_id);
+            match conn.execute(
                 "UPDATE agent_runs SET session_id = ?1, status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?2",
                 params![extracted_session_id, run_id],
-            );
+            ) {
+                Ok(rows_affected) => {
+                    if rows_affected > 0 {
+                        info!("✅ Successfully updated agent run {} with session ID: {}", run_id, extracted_session_id);
+                    } else {
+                        warn!("⚠️ No rows affected when updating agent run {} with session ID", run_id);
+                    }
+                }
+                Err(e) => {
+                    error!("❌ Failed to update agent run {} with session ID: {}", run_id, e);
+                }
+            }
+        } else {
+            error!("❌ Failed to open database to update session ID for run {}", run_id);
         }
 
         // Cleanup will be handled by the cleanup_finished_processes function
@@ -1484,13 +1522,66 @@ pub async fn get_session_output(
         return Ok(String::new());
     }
 
-    // Read the JSONL content
-    match read_session_jsonl(&run.session_id, &run.project_path).await {
-        Ok(content) => Ok(content),
-        Err(_) => {
-            // Fallback to live output if JSONL file doesn't exist yet
-            let live_output = registry.0.get_live_output(run_id)?;
-            Ok(live_output)
+    // Get the Claude directory
+    let claude_dir = dirs::home_dir()
+        .ok_or("Failed to get home directory")?
+        .join(".claude");
+
+    // Find the correct project directory by searching for the session file
+    let projects_dir = claude_dir.join("projects");
+    
+    // Check if projects directory exists
+    if !projects_dir.exists() {
+        log::error!("Projects directory not found at: {:?}", projects_dir);
+        return Err("Projects directory not found".to_string());
+    }
+
+    // Search for the session file in all project directories
+    let mut session_file_path = None;
+    log::info!("Searching for session file {} in all project directories", run.session_id);
+    
+    if let Ok(entries) = std::fs::read_dir(&projects_dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_dir() {
+                let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
+                log::debug!("Checking project directory: {}", dir_name);
+                
+                let potential_session_file = path.join(format!("{}.jsonl", run.session_id));
+                if potential_session_file.exists() {
+                    log::info!("Found session file at: {:?}", potential_session_file);
+                    session_file_path = Some(potential_session_file);
+                    break;
+                } else {
+                    log::debug!("Session file not found in: {}", dir_name);
+                }
+            }
+        }
+    } else {
+        log::error!("Failed to read projects directory");
+    }
+
+    // If we found the session file, read it
+    if let Some(session_path) = session_file_path {
+        match tokio::fs::read_to_string(&session_path).await {
+            Ok(content) => Ok(content),
+            Err(e) => {
+                log::error!("Failed to read session file {}: {}", session_path.display(), e);
+                // Fallback to live output if file read fails
+                let live_output = registry.0.get_live_output(run_id)?;
+                Ok(live_output)
+            }
+        }
+    } else {
+        // If session file not found, try the old method as fallback
+        log::warn!("Session file not found for {}, trying legacy method", run.session_id);
+        match read_session_jsonl(&run.session_id, &run.project_path).await {
+            Ok(content) => Ok(content),
+            Err(_) => {
+                // Final fallback to live output
+                let live_output = registry.0.get_live_output(run_id)?;
+                Ok(live_output)
+            }
         }
     }
 }
@@ -2075,4 +2166,69 @@ pub async fn import_agent_from_github(
 
     // Import using existing function
     import_agent(db, json_data).await
+}
+
+/// Load agent session history from JSONL file
+/// Similar to Claude Code's load_session_history, but searches across all project directories
+#[tauri::command]
+pub async fn load_agent_session_history(
+    session_id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    log::info!("Loading agent session history for session: {}", session_id);
+
+    let claude_dir = dirs::home_dir()
+        .ok_or("Failed to get home directory")?
+        .join(".claude");
+
+    let projects_dir = claude_dir.join("projects");
+    
+    if !projects_dir.exists() {
+        log::error!("Projects directory not found at: {:?}", projects_dir);
+        return Err("Projects directory not found".to_string());
+    }
+
+    // Search for the session file in all project directories
+    let mut session_file_path = None;
+    log::info!("Searching for session file {} in all project directories", session_id);
+    
+    if let Ok(entries) = std::fs::read_dir(&projects_dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_dir() {
+                let dir_name = path.file_name().unwrap_or_default().to_string_lossy();
+                log::debug!("Checking project directory: {}", dir_name);
+                
+                let potential_session_file = path.join(format!("{}.jsonl", session_id));
+                if potential_session_file.exists() {
+                    log::info!("Found session file at: {:?}", potential_session_file);
+                    session_file_path = Some(potential_session_file);
+                    break;
+                } else {
+                    log::debug!("Session file not found in: {}", dir_name);
+                }
+            }
+        }
+    } else {
+        log::error!("Failed to read projects directory");
+    }
+
+    if let Some(session_path) = session_file_path {
+        let file = std::fs::File::open(&session_path)
+            .map_err(|e| format!("Failed to open session file: {}", e))?;
+
+        let reader = BufReader::new(file);
+        let mut messages = Vec::new();
+
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line) {
+                    messages.push(json);
+                }
+            }
+        }
+
+        Ok(messages)
+    } else {
+        Err(format!("Session file not found: {}", session_id))
+    }
 }

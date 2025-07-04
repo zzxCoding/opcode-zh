@@ -64,7 +64,25 @@ export const AgentRunView: React.FC<AgentRunViewProps> = ({
       const runData = await api.getAgentRunWithRealTimeMetrics(runId);
       setRun(runData);
       
-      // Parse JSONL output into messages
+      // If we have a session_id, try to load from JSONL file first
+      if (runData.session_id && runData.session_id !== '') {
+        try {
+          const history = await api.loadAgentSessionHistory(runData.session_id);
+          
+          // Convert history to messages format
+          const loadedMessages: ClaudeStreamMessage[] = history.map(entry => ({
+            ...entry,
+            type: entry.type || "assistant"
+          }));
+          
+          setMessages(loadedMessages);
+          return;
+        } catch (err) {
+          console.warn('Failed to load from JSONL, falling back to output field:', err);
+        }
+      }
+      
+      // Fallback: Parse JSONL output from the output field
       if (runData.output) {
         const parsedMessages: ClaudeStreamMessage[] = [];
         const lines = runData.output.split('\n').filter(line => line.trim());
