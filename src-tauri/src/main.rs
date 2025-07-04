@@ -37,6 +37,10 @@ use commands::mcp::{
 use commands::usage::{
     get_session_stats, get_usage_by_date_range, get_usage_details, get_usage_stats,
 };
+use commands::storage::{
+    storage_list_tables, storage_read_table, storage_update_row, storage_delete_row,
+    storage_insert_row, storage_execute_sql, storage_reset_database,
+};
 use process::ProcessRegistryState;
 use std::sync::Mutex;
 use tauri::Manager;
@@ -163,7 +167,13 @@ fn main() {
             mcp_get_server_status,
             mcp_read_project_config,
             mcp_save_project_config,
-
+            storage_list_tables,
+            storage_read_table,
+            storage_update_row,
+            storage_delete_row,
+            storage_insert_row,
+            storage_execute_sql,
+            storage_reset_database,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

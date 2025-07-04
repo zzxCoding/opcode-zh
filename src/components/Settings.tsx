@@ -10,7 +10,8 @@ import {
   Code,
   Settings2,
   Terminal,
-  Loader2
+  Loader2,
+  Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Toast, ToastContainer } from "@/components/ui/toast";
 import { ClaudeVersionSelector } from "./ClaudeVersionSelector";
+import { StorageTab } from "./StorageTab";
 
 interface SettingsProps {
   /**
@@ -369,6 +371,10 @@ export const Settings: React.FC<SettingsProps> = ({
                 <Code className="h-4 w-4 text-purple-500" />
                 Advanced
               </TabsTrigger>
+              <TabsTrigger value="storage" className="gap-2">
+                <Database className="h-4 w-4 text-green-500" />
+                Storage
+              </TabsTrigger>
             </TabsList>
             
             {/* General Settings */}
@@ -682,6 +688,11 @@ export const Settings: React.FC<SettingsProps> = ({
                   </div>
                 </div>
               </Card>
+            </TabsContent>
+            
+            {/* Storage Tab */}
+            <TabsContent value="storage">
+              <StorageTab />
             </TabsContent>
           </Tabs>
         </div>
