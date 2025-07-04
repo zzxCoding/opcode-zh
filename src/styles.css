@@ -446,6 +446,7 @@ button:focus-visible,
   line-height: 1;
   animation: fade-in 0.2s ease-out;
   font-weight: normal;
+  font-size: 1.5rem; /* Make it bigger! */
 }
 
 .rotating-symbol::before {
@@ -458,11 +459,7 @@ button:focus-visible,
   transform-origin: center;
 }
 
-/* Make the rotating symbol more prominent at larger sizes */
-.rotating-symbol.text-xl::before,
-.rotating-symbol.text-2xl::before {
-  font-weight: 900;
-}
+/* Removed special font-weight for larger sizes to maintain consistency */
 
 /* Shimmer hover effect */
 @keyframes shimmer {

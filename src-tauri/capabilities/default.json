@@ -18,6 +18,11 @@
           "name": "claude-code",
           "sidecar": true,
           "args": true
+        },
+        {
+          "name": "claude",
+          "sidecar": false,
+          "args": true
         }
       ]
     },
@@ -27,6 +32,11 @@
         {
           "name": "claude-code",
           "sidecar": true,
+          "args": true
+        },
+        {
+          "name": "claude",
+          "sidecar": false,
           "args": true
         }
       ]

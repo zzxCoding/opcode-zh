@@ -879,7 +879,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
           animate={{ opacity: 1 }}
           className="flex items-center justify-center py-4 mb-40"
         >
-          <div className="rotating-symbol text-primary text-2xl" />
+          <div className="rotating-symbol text-primary" />
         </motion.div>
       )}
 
@@ -1113,7 +1113,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               {isLoading && messages.length === 0 && (
                 <div className="flex items-center justify-center h-full">
                   <div className="flex items-center gap-3">
-                    <div className="rotating-symbol text-primary text-2xl" />
+                    <div className="rotating-symbol text-primary" />
                     <span className="text-sm text-muted-foreground">
                       {session ? "Loading session history..." : "Initializing Claude Code..."}
                     </span>
