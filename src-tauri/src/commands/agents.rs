@@ -814,6 +814,14 @@ async fn spawn_agent_sidecar(
     // We'll extract the session ID from Claude's init message
     let session_id_holder: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 
+    // Create variables we need for the spawned task
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .expect("Failed to get app data dir");
+    let db_path = app_dir.join("agents.db");
+    let db_path_for_stream = db_path.clone(); // Clone for the streaming task
+
     // Spawn task to read events from sidecar
     let app_handle = app.clone();
     let session_id_holder_clone = session_id_holder.clone();
@@ -865,6 +873,23 @@ async fn spawn_agent_sidecar(
                                         if current_session_id.is_none() {
                                             *current_session_id = Some(sid.to_string());
                                             info!("🔑 Extracted session ID: {}", sid);
+                                            
+                                            // Update database immediately with session ID
+                                            if let Ok(conn) = Connection::open(&db_path_for_stream) {
+                                                match conn.execute(
+                                                    "UPDATE agent_runs SET session_id = ?1 WHERE id = ?2",
+                                                    params![sid, run_id],
+                                                ) {
+                                                    Ok(rows) => {
+                                                        if rows > 0 {
+                                                            info!("✅ Updated agent run {} with session ID immediately", run_id);
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        error!("❌ Failed to update session ID immediately: {}", e);
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -904,13 +929,6 @@ async fn spawn_agent_sidecar(
 
         info!("📖 Finished reading Claude sidecar events. Total lines: {}", line_count);
     });
-
-    // Create variables we need for the spawned task
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .expect("Failed to get app data dir");
-    let db_path = app_dir.join("agents.db");
 
     // Monitor process status and wait for completion
     tokio::spawn(async move {
@@ -1040,6 +1058,13 @@ async fn spawn_agent_system(
     let stdout_reader = TokioBufReader::new(stdout);
     let stderr_reader = TokioBufReader::new(stderr);
 
+    // Create variables we need for the spawned tasks
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .expect("Failed to get app data dir");
+    let db_path = app_dir.join("agents.db");
+
     // Shared state for collecting session ID and live output
     let session_id = std::sync::Arc::new(Mutex::new(String::new()));
     let live_output = std::sync::Arc::new(Mutex::new(String::new()));
@@ -1052,6 +1077,7 @@ async fn spawn_agent_system(
     let registry_clone = registry.0.clone();
     let first_output = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let first_output_clone = first_output.clone();
+    let db_path_for_stdout = db_path.clone(); // Clone the db_path for the stdout task
 
     let stdout_task = tokio::spawn(async move {
         info!("📖 Starting to read Claude stdout...");
@@ -1095,6 +1121,23 @@ async fn spawn_agent_system(
                             if current_session_id.is_empty() {
                                 *current_session_id = sid.to_string();
                                 info!("🔑 Extracted session ID: {}", sid);
+                                
+                                // Update database immediately with session ID
+                                if let Ok(conn) = Connection::open(&db_path_for_stdout) {
+                                    match conn.execute(
+                                        "UPDATE agent_runs SET session_id = ?1 WHERE id = ?2",
+                                        params![sid, run_id],
+                                    ) {
+                                        Ok(rows) => {
+                                            if rows > 0 {
+                                                info!("✅ Updated agent run {} with session ID immediately", run_id);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            error!("❌ Failed to update session ID immediately: {}", e);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1164,12 +1207,7 @@ async fn spawn_agent_system(
         .map_err(|e| format!("Failed to register process: {}", e))?;
     info!("📋 Registered process in registry");
 
-    // Create variables we need for the spawned task
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .expect("Failed to get app data dir");
-    let db_path = app_dir.join("agents.db");
+    let db_path_for_monitor = db_path.clone(); // Clone for the monitor task
 
     // Monitor process status and wait for completion
     tokio::spawn(async move {
@@ -1221,7 +1259,7 @@ async fn spawn_agent_system(
                 }
 
                 // Update database
-                if let Ok(conn) = Connection::open(&db_path) {
+                if let Ok(conn) = Connection::open(&db_path_for_monitor) {
                     let _ = conn.execute(
                         "UPDATE agent_runs SET status = 'failed', completed_at = CURRENT_TIMESTAMP WHERE id = ?1",
                         params![run_id],
@@ -1255,7 +1293,7 @@ async fn spawn_agent_system(
         info!("✅ Claude process execution monitoring complete");
 
         // Update the run record with session ID and mark as completed - open a new connection
-        if let Ok(conn) = Connection::open(&db_path) {
+        if let Ok(conn) = Connection::open(&db_path_for_monitor) {
             info!("🔄 Updating database with extracted session ID: {}", extracted_session_id);
             match conn.execute(
                 "UPDATE agent_runs SET session_id = ?1, status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?2",

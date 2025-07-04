@@ -12,7 +12,8 @@ import {
   Clock,
   Hash,
   DollarSign,
-  ExternalLink
+  ExternalLink,
+  StopCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,12 +65,16 @@ export function AgentRunOutputViewer({
 }: AgentRunOutputViewerProps) {
   const [messages, setMessages] = useState<ClaudeStreamMessage[]>([]);
   const [rawJsonlOutput, setRawJsonlOutput] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [copyPopoverOpen, setCopyPopoverOpen] = useState(false);
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
+  
+  // Track whether we're in the initial load phase
+  const isInitialLoadRef = useRef(true);
+  const hasSetupListenersRef = useRef(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const outputEndRef = useRef<HTMLDivElement>(null);
@@ -98,10 +103,12 @@ export function AgentRunOutputViewer({
     }
   };
 
-  // Clean up listeners on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       unlistenRefs.current.forEach(unlisten => unlisten());
+      unlistenRefs.current = [];
+      hasSetupListenersRef.current = false;
     };
   }, []);
 
@@ -235,17 +242,33 @@ export function AgentRunOutputViewer({
     }
   };
 
+  // Set up live event listeners for running sessions
   const setupLiveEventListeners = async () => {
-    if (!run.id) return;
+    if (!run.id || hasSetupListenersRef.current) return;
     
     try {
       // Clean up existing listeners
       unlistenRefs.current.forEach(unlisten => unlisten());
       unlistenRefs.current = [];
 
+      // Mark that we've set up listeners
+      hasSetupListenersRef.current = true;
+      
+      // After setup, we're no longer in initial load
+      // Small delay to ensure any pending messages are processed
+      setTimeout(() => {
+        isInitialLoadRef.current = false;
+      }, 100);
+
       // Set up live event listeners with run ID isolation
       const outputUnlisten = await listen<string>(`agent-output:${run.id}`, (event) => {
         try {
+          // Skip messages during initial load phase
+          if (isInitialLoadRef.current) {
+            console.log('[AgentRunOutputViewer] Skipping message during initial load');
+            return;
+          }
+          
           // Store raw JSONL
           setRawJsonlOutput(prev => [...prev, event.payload]);
           
@@ -253,17 +276,18 @@ export function AgentRunOutputViewer({
           const message = JSON.parse(event.payload) as ClaudeStreamMessage;
           setMessages(prev => [...prev, message]);
         } catch (err) {
-          console.error("Failed to parse message:", err, event.payload);
+          console.error("[AgentRunOutputViewer] Failed to parse message:", err, event.payload);
         }
       });
 
       const errorUnlisten = await listen<string>(`agent-error:${run.id}`, (event) => {
-        console.error("Agent error:", event.payload);
+        console.error("[AgentRunOutputViewer] Agent error:", event.payload);
         setToast({ message: event.payload, type: 'error' });
       });
 
       const completeUnlisten = await listen<boolean>(`agent-complete:${run.id}`, () => {
         setToast({ message: 'Agent execution completed', type: 'success' });
+        // Don't set status here as the parent component should handle it
       });
 
       const cancelUnlisten = await listen<boolean>(`agent-cancelled:${run.id}`, () => {
@@ -272,7 +296,7 @@ export function AgentRunOutputViewer({
 
       unlistenRefs.current = [outputUnlisten, errorUnlisten, completeUnlisten, cancelUnlisten];
     } catch (error) {
-      console.error('Failed to set up live event listeners:', error);
+      console.error('[AgentRunOutputViewer] Failed to set up live event listeners:', error);
     }
   };
 
@@ -341,10 +365,61 @@ export function AgentRunOutputViewer({
     setToast({ message: 'Output copied as Markdown', type: 'success' });
   };
 
-  const refreshOutput = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    await loadOutput(true); // Skip cache
+    await loadOutput();
     setRefreshing(false);
+  };
+
+  const handleStop = async () => {
+    if (!run.id) {
+      console.error('[AgentRunOutputViewer] No run ID available to stop');
+      return;
+    }
+
+    try {
+      // Call the API to kill the agent session
+      const success = await api.killAgentSession(run.id);
+      
+      if (success) {
+        console.log(`[AgentRunOutputViewer] Successfully stopped agent session ${run.id}`);
+        setToast({ message: 'Agent execution stopped', type: 'success' });
+        
+        // Clean up listeners
+        unlistenRefs.current.forEach(unlisten => unlisten());
+        unlistenRefs.current = [];
+        hasSetupListenersRef.current = false;
+        
+        // Add a message indicating execution was stopped
+        const stopMessage: ClaudeStreamMessage = {
+          type: "result",
+          subtype: "error",
+          is_error: true,
+          result: "Execution stopped by user",
+          duration_ms: 0,
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0
+          }
+        };
+        setMessages(prev => [...prev, stopMessage]);
+        
+        // Update the run status locally
+        // Optionally refresh the parent component
+        setTimeout(() => {
+          window.location.reload(); // Simple refresh to update the status
+        }, 1000);
+      } else {
+        console.warn(`[AgentRunOutputViewer] Failed to stop agent session ${run.id} - it may have already finished`);
+        setToast({ message: 'Failed to stop agent - it may have already finished', type: 'error' });
+      }
+    } catch (err) {
+      console.error('[AgentRunOutputViewer] Failed to stop agent:', err);
+      setToast({ 
+        message: `Failed to stop execution: ${err instanceof Error ? err.message : 'Unknown error'}`, 
+        type: 'error' 
+      });
+    }
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -562,13 +637,25 @@ export function AgentRunOutputViewer({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={refreshOutput}
+                  onClick={handleRefresh}
                   disabled={refreshing}
                   title="Refresh output"
                   className="h-8 px-2"
                 >
                   <RotateCcw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                 </Button>
+                {run.status === 'running' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleStop}
+                    disabled={refreshing}
+                    title="Stop execution"
+                    className="h-8 px-2 text-destructive hover:text-destructive"
+                  >
+                    <StopCircle className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -667,11 +754,22 @@ export function AgentRunOutputViewer({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={refreshOutput}
+                onClick={handleRefresh}
                 disabled={refreshing}
               >
                 <RotateCcw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
+              {run.status === 'running' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStop}
+                  disabled={refreshing}
+                >
+                  <StopCircle className="h-4 w-4 mr-2" />
+                  Stop
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
