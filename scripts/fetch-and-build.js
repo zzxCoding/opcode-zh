@@ -10,9 +10,12 @@
  * 4. Cleans up temporary files
  * 
  * Usage:
- *   bun run fetch-and-build.js [platform]
+ *   bun run fetch-and-build.js [platform] [--version=X.X.X]
  * 
  * Where platform can be: all, linux, macos, windows, current
+ * 
+ * Version can be specified via:
+ *   - CLI argument: --version=1.0.41 (defaults to 1.0.41 if not specified)
  */
 
 import { spawn } from 'child_process';
@@ -66,11 +69,49 @@ async function pathExists(path) {
 }
 
 /**
+ * Parse command line arguments to extract version and platform
+ * @param {string[]} args - Command line arguments
+ * @returns {object} - Parsed arguments with platform and version
+ */
+function parseArguments(args) {
+  let platform = 'all';
+  let version = null;
+  
+  for (const arg of args) {
+    if (arg.startsWith('--version=')) {
+      version = arg.split('=')[1];
+    } else if (!arg.startsWith('--')) {
+      platform = arg;
+    }
+  }
+  
+  return { platform, version };
+}
+
+/**
+ * Determine the Claude Code version to use
+ * @param {string|null} cliVersion - Version from CLI argument
+ * @returns {string} - The version to use
+ */
+function determineClaudeCodeVersion(cliVersion) {
+  const defaultVersion = '1.0.41';
+  
+  if (cliVersion) {
+    console.log(`\n🔍 Using Claude Code version from CLI argument: ${cliVersion}`);
+    return cliVersion;
+  }
+  
+  console.log(`\n🔍 Using default Claude Code version: ${defaultVersion}`);
+  return defaultVersion;
+}
+
+/**
  * Download and extract the Claude Code package from npm
+ * @param {string} version - The version of the Claude Code package to download
  * @returns {Promise<string>} - Path to the extracted package directory
  */
-async function fetchClaudeCodePackage() {
-  console.log('\n📦 Fetching @anthropic-ai/claude-code package from npm...');
+async function fetchClaudeCodePackage(version) {
+  console.log(`\n📦 Fetching @anthropic-ai/claude-code@${version} package from npm...`);
   
   const tempDir = resolve('./temp-claude-package');
   const packageDir = join(tempDir, 'package');
@@ -86,8 +127,8 @@ async function fetchClaudeCodePackage() {
     await mkdir(tempDir, { recursive: true });
     
     // Download the package tarball
-    console.log('Downloading package tarball...');
-    await runCommand('npm', ['pack', '@anthropic-ai/claude-code'], { 
+    console.log(`Downloading package tarball for version ${version}...`);
+    await runCommand('npm', ['pack', `@anthropic-ai/claude-code@${version}`], { 
       cwd: tempDir 
     });
     
@@ -238,12 +279,20 @@ async function buildExecutables(platform = 'all') {
  * Main execution function
  */
 async function main() {
-  const platform = process.argv[2] || 'all';
+  // Parse command line arguments
+  const args = process.argv.slice(2);
+  const { platform, version: cliVersion } = parseArguments(args);
+  
   const validPlatforms = ['all', 'linux', 'macos', 'darwin', 'windows', 'win32', 'current'];
   
   if (!validPlatforms.includes(platform)) {
     console.error(`Invalid platform: ${platform}`);
     console.error(`Valid platforms: ${validPlatforms.join(', ')}`);
+    console.error('\nUsage: bun run fetch-and-build.js [platform] [--version=X.X.X]');
+    console.error('Examples:');
+    console.error('  bun run fetch-and-build.js');
+    console.error('  bun run fetch-and-build.js linux');
+    console.error('  bun run fetch-and-build.js macos --version=1.0.42');
     process.exit(1);
   }
   
@@ -254,13 +303,16 @@ async function main() {
   let packageDir;
   
   try {
-    // Step 1: Fetch and extract the package
-    packageDir = await fetchClaudeCodePackage();
+    // Step 1: Determine version to use
+    const version = determineClaudeCodeVersion(cliVersion);
     
-    // Step 2: Copy required files
+    // Step 2: Fetch and extract the package
+    packageDir = await fetchClaudeCodePackage(version);
+    
+    // Step 3: Copy required files
     await copyRequiredFiles(packageDir);
     
-    // Step 3: Build executables
+    // Step 4: Build executables
     await buildExecutables(platform);
     
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
