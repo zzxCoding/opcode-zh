@@ -408,15 +408,30 @@ fn get_claude_version(path: &str) -> Result<Option<String>, String> {
 /// Extract version string from command output
 fn extract_version_from_output(stdout: &[u8]) -> Option<String> {
     let output_str = String::from_utf8_lossy(stdout);
-
-    // Extract version: first token before whitespace that looks like a version
-    output_str
-        .split_whitespace()
-        .find(|token| {
-            // Version usually contains dots and numbers
-            token.chars().any(|c| c == '.') && token.chars().any(|c| c.is_numeric())
-        })
-        .map(|s| s.to_string())
+    
+    // Debug log the raw output
+    debug!("Raw version output: {:?}", output_str);
+    
+    // Use regex to directly extract version pattern (e.g., "1.0.41")
+    // This pattern matches:
+    // - One or more digits, followed by
+    // - A dot, followed by
+    // - One or more digits, followed by
+    // - A dot, followed by
+    // - One or more digits
+    // - Optionally followed by pre-release/build metadata
+    let version_regex = regex::Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok()?;
+    
+    if let Some(captures) = version_regex.captures(&output_str) {
+        if let Some(version_match) = captures.get(1) {
+            let version = version_match.as_str().to_string();
+            debug!("Extracted version: {:?}", version);
+            return Some(version);
+        }
+    }
+    
+    debug!("No version found in output");
+    None
 }
 
 /// Select the best installation based on version

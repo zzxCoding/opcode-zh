@@ -11,6 +11,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_shell::ShellExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use regex;
 
 /// Finds the full path to the claude binary
 /// This is necessary because macOS apps have a limited PATH environment
@@ -1697,11 +1698,83 @@ pub async fn set_claude_binary_path(db: State<'_, AgentDb>, path: String) -> Res
 /// List all available Claude installations on the system
 #[tauri::command]
 pub async fn list_claude_installations(
+    app: AppHandle,
 ) -> Result<Vec<crate::claude_binary::ClaudeInstallation>, String> {
-    let installations = crate::claude_binary::discover_claude_installations();
+    let mut installations = crate::claude_binary::discover_claude_installations();
 
     if installations.is_empty() {
         return Err("No Claude Code installations found on the system".to_string());
+    }
+
+    // For bundled installations, execute the sidecar to get the actual version
+    for installation in &mut installations {
+        if installation.installation_type == crate::claude_binary::InstallationType::Bundled {
+            // Try to get the version by executing the sidecar
+            use tauri_plugin_shell::process::CommandEvent;
+            
+            // Create a temporary directory for the sidecar to run in
+            let temp_dir = std::env::temp_dir();
+            
+            // Create sidecar command with --version flag
+            let sidecar_cmd = match app
+                .shell()
+                .sidecar("claude-code") {
+                Ok(cmd) => cmd.args(["--version"]).current_dir(&temp_dir),
+                Err(e) => {
+                    log::warn!("Failed to create sidecar command for version check: {}", e);
+                    continue;
+                }
+            };
+            
+            // Spawn the sidecar and collect output
+            match sidecar_cmd.spawn() {
+                Ok((mut rx, _child)) => {
+                    let mut stdout_output = String::new();
+                    let mut stderr_output = String::new();
+                    
+                    // Set a timeout for version check
+                    let timeout = tokio::time::Duration::from_secs(5);
+                    let start_time = tokio::time::Instant::now();
+                    
+                    while let Ok(Some(event)) = tokio::time::timeout_at(
+                        start_time + timeout,
+                        rx.recv()
+                    ).await {
+                        match event {
+                            CommandEvent::Stdout(data) => {
+                                stdout_output.push_str(&String::from_utf8_lossy(&data));
+                            }
+                            CommandEvent::Stderr(data) => {
+                                stderr_output.push_str(&String::from_utf8_lossy(&data));
+                            }
+                            CommandEvent::Terminated { .. } => {
+                                break;
+                            }
+                            CommandEvent::Error(e) => {
+                                log::warn!("Error during sidecar version check: {}", e);
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    
+                    // Use regex to directly extract version pattern
+                    let version_regex = regex::Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok();
+                    
+                    if let Some(regex) = version_regex {
+                        if let Some(captures) = regex.captures(&stdout_output) {
+                            if let Some(version_match) = captures.get(1) {
+                                installation.version = Some(version_match.as_str().to_string());
+                                log::info!("Bundled sidecar version: {}", version_match.as_str());
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Failed to spawn sidecar for version check: {}", e);
+                }
+            }
+        }
     }
 
     Ok(installations)

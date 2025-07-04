@@ -11,6 +11,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
+use regex;
 
 /// Global state to track current Claude process
 pub struct ClaudeProcessState {
@@ -577,17 +578,89 @@ pub async fn check_claude_version(app: AppHandle) -> Result<ClaudeVersionStatus,
         }
     };
 
-    // If the selected path is the special sidecar identifier, we cannot execute it directly.
-    // Instead, assume the bundled sidecar is available (find_claude_binary already verified
-    // this) and return a positive status without a version string. Attempting to spawn the
-    // sidecar here would require async streaming plumbing that is over-kill for a simple
-    // presence check and fails in debug builds (os error 2).
+    // If the selected path is the special sidecar identifier, execute it to get version
     if claude_path == "claude-code" {
-        return Ok(ClaudeVersionStatus {
-            is_installed: true,
-            version: None,
-            output: "Using bundled Claude Code sidecar".to_string(),
-        });
+        use tauri_plugin_shell::process::CommandEvent;
+        
+        // Create a temporary directory for the sidecar to run in
+        let temp_dir = std::env::temp_dir();
+        
+        // Create sidecar command with --version flag
+        let sidecar_cmd = match app
+            .shell()
+            .sidecar("claude-code") {
+            Ok(cmd) => cmd.args(["--version"]).current_dir(&temp_dir),
+            Err(e) => {
+                log::error!("Failed to create sidecar command: {}", e);
+                return Ok(ClaudeVersionStatus {
+                    is_installed: true, // We know it exists, just couldn't create command
+                    version: None,
+                    output: format!("Using bundled Claude Code sidecar (command creation failed: {})", e),
+                });
+            }
+        };
+        
+        // Spawn the sidecar and collect output
+        match sidecar_cmd.spawn() {
+            Ok((mut rx, _child)) => {
+                let mut stdout_output = String::new();
+                let mut stderr_output = String::new();
+                let mut exit_success = false;
+                
+                // Collect output from the sidecar
+                while let Some(event) = rx.recv().await {
+                    match event {
+                        CommandEvent::Stdout(data) => {
+                            let line = String::from_utf8_lossy(&data);
+                            stdout_output.push_str(&line);
+                        }
+                        CommandEvent::Stderr(data) => {
+                            let line = String::from_utf8_lossy(&data);
+                            stderr_output.push_str(&line);
+                        }
+                        CommandEvent::Terminated(payload) => {
+                            exit_success = payload.code.unwrap_or(-1) == 0;
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+                
+                // Use regex to directly extract version pattern (e.g., "1.0.41")
+                let version_regex = regex::Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok();
+                
+                let version = if let Some(regex) = version_regex {
+                    regex.captures(&stdout_output)
+                        .and_then(|captures| captures.get(1))
+                        .map(|m| m.as_str().to_string())
+                } else {
+                    None
+                };
+                
+                let full_output = if stderr_output.is_empty() {
+                    stdout_output.clone()
+                } else {
+                    format!("{}\n{}", stdout_output, stderr_output)
+                };
+
+                // Check if the output matches the expected format
+                let is_valid = stdout_output.contains("(Claude Code)") || stdout_output.contains("Claude Code") || version.is_some();
+
+                return Ok(ClaudeVersionStatus {
+                    is_installed: is_valid && exit_success,
+                    version,
+                    output: full_output.trim().to_string(),
+                });
+            }
+            Err(e) => {
+                log::error!("Failed to execute sidecar: {}", e);
+                return Ok(ClaudeVersionStatus {
+                    is_installed: true, // We know it exists, just couldn't get version
+                    version: None,
+                    output: format!("Using bundled Claude Code sidecar (version check failed: {})", e),
+                });
+            }
+        }
     }
 
     use log::debug;debug!("Claude path: {}", claude_path);
@@ -622,6 +695,18 @@ pub async fn check_claude_version(app: AppHandle) -> Result<ClaudeVersionStatus,
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                
+                // Use regex to directly extract version pattern (e.g., "1.0.41")
+                let version_regex = regex::Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok();
+                
+                let version = if let Some(regex) = version_regex {
+                    regex.captures(&stdout)
+                        .and_then(|captures| captures.get(1))
+                        .map(|m| m.as_str().to_string())
+                } else {
+                    None
+                };
+                
                 let full_output = if stderr.is_empty() {
                     stdout.clone()
                 } else {
@@ -631,14 +716,6 @@ pub async fn check_claude_version(app: AppHandle) -> Result<ClaudeVersionStatus,
                 // Check if the output matches the expected format
                 // Expected format: "1.0.17 (Claude Code)" or similar
                 let is_valid = stdout.contains("(Claude Code)") || stdout.contains("Claude Code");
-
-                // Extract version number if valid
-                let version = if is_valid {
-                    // Try to extract just the version number
-                    stdout.split_whitespace().next().map(|s| s.to_string())
-                } else {
-                    None
-                };
 
                 Ok(ClaudeVersionStatus {
                     is_installed: is_valid && output.status.success(),
