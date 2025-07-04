@@ -185,7 +185,7 @@ function App() {
                   transition={{ duration: 0.5, delay: 0.1 }}
                 >
                   <Card 
-                    className="h-64 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg border border-border/50 shimmer-hover"
+                    className="h-64 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg border border-border/50 shimmer-hover trailing-border"
                     onClick={() => handleViewChange("agents")}
                   >
                     <div className="h-full flex flex-col items-center justify-center p-8">
@@ -202,7 +202,7 @@ function App() {
                   transition={{ duration: 0.5, delay: 0.2 }}
                 >
                   <Card 
-                    className="h-64 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg border border-border/50 shimmer-hover"
+                    className="h-64 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg border border-border/50 shimmer-hover trailing-border"
                     onClick={() => handleViewChange("projects")}
                   >
                     <div className="h-full flex flex-col items-center justify-center p-8">
