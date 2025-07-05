@@ -88,6 +88,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Claude & Project Management
             list_projects,
             get_project_sessions,
             get_claude_settings,
@@ -108,6 +109,9 @@ fn main() {
             get_claude_session_output,
             list_directory_contents,
             search_files,
+            get_recently_modified_files,
+            
+            // Checkpoint Management
             create_checkpoint,
             restore_checkpoint,
             list_checkpoints,
@@ -122,7 +126,8 @@ fn main() {
             get_checkpoint_settings,
             clear_checkpoint_manager,
             get_checkpoint_state_stats,
-            get_recently_modified_files,
+            
+            // Agent Management
             list_agents,
             create_agent,
             update_agent,
@@ -151,10 +156,14 @@ fn main() {
             fetch_github_agents,
             fetch_github_agent_content,
             import_agent_from_github,
+            
+            // Usage & Analytics
             get_usage_stats,
             get_usage_by_date_range,
             get_usage_details,
             get_session_stats,
+            
+            // MCP (Model Context Protocol)
             mcp_add,
             mcp_list,
             mcp_get,
@@ -167,6 +176,8 @@ fn main() {
             mcp_get_server_status,
             mcp_read_project_config,
             mcp_save_project_config,
+            
+            // Storage Management
             storage_list_tables,
             storage_read_table,
             storage_update_row,
