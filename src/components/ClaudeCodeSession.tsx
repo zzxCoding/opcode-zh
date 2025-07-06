@@ -20,6 +20,7 @@ import { api, type Session } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { StreamMessage } from "./StreamMessage";
 import { FloatingPromptInput, type FloatingPromptInputRef } from "./FloatingPromptInput";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -827,9 +828,19 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         api.clearCheckpointManager(effectiveSession.id).catch(err => {
           console.error("Failed to clear checkpoint manager:", err);
         });
+        
+        // Clean up temporary images
+        if (projectPath) {
+          invoke('cleanup_temp_images', {
+            projectPath,
+            sessionId: effectiveSession.id
+          }).catch((err: any) => {
+            console.error("Failed to cleanup temp images:", err);
+          });
+        }
       }
     };
-  }, [effectiveSession]);
+  }, [effectiveSession, projectPath]);
 
   const messagesList = (
     <div

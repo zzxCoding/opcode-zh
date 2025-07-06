@@ -19,6 +19,7 @@ import { FilePicker } from "./FilePicker";
 import { ImagePreview } from "./ImagePreview";
 import { type FileEntry } from "@/lib/api";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
 
 interface FloatingPromptInputProps {
   /**
@@ -199,7 +200,8 @@ const FloatingPromptInputInner = (
             return currentPrompt; // Image already added
           }
 
-          const mention = `@${imagePath}`;
+          // Wrap path in quotes if it contains spaces
+          const mention = imagePath.includes(' ') ? `@"${imagePath}"` : `@${imagePath}`;
           const newPrompt = currentPrompt + (currentPrompt.endsWith(' ') || currentPrompt === '' ? '' : ' ') + mention + ' ';
 
           // Focus the textarea
@@ -225,19 +227,49 @@ const FloatingPromptInputInner = (
   // Extract image paths from prompt text
   const extractImagePaths = (text: string): string[] => {
     console.log('[extractImagePaths] Input text:', text);
-    const regex = /@([^\s]+)/g;
-    const matches = Array.from(text.matchAll(regex));
-    console.log('[extractImagePaths] Regex matches:', matches.map(m => m[0]));
+    
+    // Updated regex to handle both quoted and unquoted paths
+    // Pattern 1: @"path with spaces" - quoted paths
+    // Pattern 2: @path - unquoted paths (continues until @ or end)
+    const quotedRegex = /@"([^"]+)"/g;
+    const unquotedRegex = /@([^@\n\s]+)/g;
+    
     const pathsSet = new Set<string>(); // Use Set to ensure uniqueness
-
+    
+    // First, extract quoted paths
+    let matches = Array.from(text.matchAll(quotedRegex));
+    console.log('[extractImagePaths] Quoted matches:', matches.map(m => m[0]));
+    
     for (const match of matches) {
-      const path = match[1];
-      console.log('[extractImagePaths] Processing path:', path);
+      const path = match[1]; // No need to trim, quotes preserve exact path
+      console.log('[extractImagePaths] Processing quoted path:', path);
+      
       // Convert relative path to absolute if needed
       const fullPath = path.startsWith('/') ? path : (projectPath ? `${projectPath}/${path}` : path);
       console.log('[extractImagePaths] Full path:', fullPath, 'Is image:', isImageFile(fullPath));
+      
       if (isImageFile(fullPath)) {
-        pathsSet.add(fullPath); // Add to Set (automatically handles duplicates)
+        pathsSet.add(fullPath);
+      }
+    }
+    
+    // Remove quoted mentions from text to avoid double-matching
+    let textWithoutQuoted = text.replace(quotedRegex, '');
+    
+    // Then extract unquoted paths
+    matches = Array.from(textWithoutQuoted.matchAll(unquotedRegex));
+    console.log('[extractImagePaths] Unquoted matches:', matches.map(m => m[0]));
+    
+    for (const match of matches) {
+      const path = match[1].trim();
+      console.log('[extractImagePaths] Processing unquoted path:', path);
+      
+      // Convert relative path to absolute if needed
+      const fullPath = path.startsWith('/') ? path : (projectPath ? `${projectPath}/${path}` : path);
+      console.log('[extractImagePaths] Full path:', fullPath, 'Is image:', isImageFile(fullPath));
+      
+      if (isImageFile(fullPath)) {
+        pathsSet.add(fullPath);
       }
     }
 
@@ -295,7 +327,14 @@ const FloatingPromptInputInner = (
                   return currentPrompt; // All dropped images are already in the prompt
                 }
 
-                const mentionsToAdd = newPaths.map(p => `@${p}`).join(' ');
+                // Wrap paths with spaces in quotes for clarity
+                const mentionsToAdd = newPaths.map(p => {
+                  // If path contains spaces, wrap in quotes
+                  if (p.includes(' ')) {
+                    return `@"${p}"`;
+                  }
+                  return `@${p}`;
+                }).join(' ');
                 const newPrompt = currentPrompt + (currentPrompt.endsWith(' ') || currentPrompt === '' ? '' : ' ') + mentionsToAdd + ' ';
 
                 setTimeout(() => {
@@ -438,6 +477,60 @@ const FloatingPromptInputInner = (
     }
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items || !projectPath) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        
+        // Get the image blob
+        const blob = item.getAsFile();
+        if (!blob) continue;
+
+        try {
+          // Convert blob to base64
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const base64Data = reader.result as string;
+            
+            // Generate a session-specific ID for the image
+            const sessionId = `paste-${Date.now()}`;
+            
+            // Save the image via Tauri command
+            const imagePath = await invoke<string>('save_clipboard_image', {
+              projectPath,
+              sessionId,
+              imageData: base64Data,
+              mimeType: item.type
+            });
+
+            // Add the image path as a mention to the prompt
+            setPrompt(currentPrompt => {
+              // Wrap path in quotes if it contains spaces
+              const mention = imagePath.includes(' ') ? `@"${imagePath}"` : `@${imagePath}`;
+              const newPrompt = currentPrompt + (currentPrompt.endsWith(' ') || currentPrompt === '' ? '' : ' ') + mention + ' ';
+              
+              // Focus the textarea and move cursor to end
+              setTimeout(() => {
+                const target = isExpanded ? expandedTextareaRef.current : textareaRef.current;
+                target?.focus();
+                target?.setSelectionRange(newPrompt.length, newPrompt.length);
+              }, 0);
+
+              return newPrompt;
+            });
+          };
+          
+          reader.readAsDataURL(blob);
+        } catch (error) {
+          console.error('Failed to paste image:', error);
+        }
+      }
+    }
+  };
+
   // Browser drag and drop handlers - just prevent default behavior
   // Actual file handling is done via Tauri's window-level drag-drop events
   const handleDrag = (e: React.DragEvent) => {
@@ -455,9 +548,19 @@ const FloatingPromptInputInner = (
   const handleRemoveImage = (index: number) => {
     // Remove the corresponding @mention from the prompt
     const imagePath = embeddedImages[index];
+    const escapedPath = imagePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedRelativePath = imagePath.replace(projectPath + '/', '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Create patterns for both quoted and unquoted mentions
     const patterns = [
-      new RegExp(`@${imagePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?`, 'g'),
-      new RegExp(`@${imagePath.replace(projectPath + '/', '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?`, 'g')
+      // Quoted full path
+      new RegExp(`@"${escapedPath}"\\s?`, 'g'),
+      // Unquoted full path
+      new RegExp(`@${escapedPath}\\s?`, 'g'),
+      // Quoted relative path
+      new RegExp(`@"${escapedRelativePath}"\\s?`, 'g'),
+      // Unquoted relative path
+      new RegExp(`@${escapedRelativePath}\\s?`, 'g')
     ];
 
     let newPrompt = prompt;
@@ -514,6 +617,7 @@ const FloatingPromptInputInner = (
                 ref={expandedTextareaRef}
                 value={prompt}
                 onChange={handleTextChange}
+                onPaste={handlePaste}
                 placeholder="Type your prompt here..."
                 className="min-h-[200px] resize-none"
                 disabled={disabled}
@@ -756,6 +860,7 @@ const FloatingPromptInputInner = (
                   value={prompt}
                   onChange={handleTextChange}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   placeholder={dragActive ? "Drop images here..." : "Ask Claude anything..."}
                   disabled={disabled}
                   className={cn(
@@ -808,7 +913,7 @@ const FloatingPromptInputInner = (
             </div>
 
             <div className="mt-2 text-xs text-muted-foreground">
-              Press Enter to send, Shift+Enter for new line{projectPath?.trim() && ", @ to mention files, drag & drop images"}
+              Press Enter to send, Shift+Enter for new line{projectPath?.trim() && ", @ to mention files, drag & drop or paste images"}
             </div>
           </div>
         </div>
