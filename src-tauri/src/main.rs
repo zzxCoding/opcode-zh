@@ -189,6 +189,12 @@ fn main() {
             storage_insert_row,
             storage_execute_sql,
             storage_reset_database,
+            
+            // Slash Commands
+            commands::slash_commands::slash_commands_list,
+            commands::slash_commands::slash_command_get,
+            commands::slash_commands::slash_command_save,
+            commands::slash_commands::slash_command_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

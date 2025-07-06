@@ -16,8 +16,9 @@ import { Popover } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FilePicker } from "./FilePicker";
+import { SlashCommandPicker } from "./SlashCommandPicker";
 import { ImagePreview } from "./ImagePreview";
-import { type FileEntry } from "@/lib/api";
+import { type FileEntry, type SlashCommand } from "@/lib/api";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 interface FloatingPromptInputProps {
@@ -180,6 +181,8 @@ const FloatingPromptInputInner = (
   const [thinkingModePickerOpen, setThinkingModePickerOpen] = useState(false);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [filePickerQuery, setFilePickerQuery] = useState("");
+  const [showSlashCommandPicker, setShowSlashCommandPicker] = useState(false);
+  const [slashCommandQuery, setSlashCommandQuery] = useState("");
   const [cursorPosition, setCursorPosition] = useState(0);
   const [embeddedImages, setEmbeddedImages] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -400,12 +403,51 @@ const FloatingPromptInputInner = (
     const newValue = e.target.value;
     const newCursorPosition = e.target.selectionStart || 0;
 
+    // Check if / was just typed at the beginning of input or after whitespace
+    if (newValue.length > prompt.length && newValue[newCursorPosition - 1] === '/') {
+      // Check if it's at the start or after whitespace
+      const isStartOfCommand = newCursorPosition === 1 || 
+        (newCursorPosition > 1 && /\s/.test(newValue[newCursorPosition - 2]));
+      
+      if (isStartOfCommand) {
+        console.log('[FloatingPromptInput] / detected for slash command');
+        setShowSlashCommandPicker(true);
+        setSlashCommandQuery("");
+        setCursorPosition(newCursorPosition);
+      }
+    }
+
     // Check if @ was just typed
     if (projectPath?.trim() && newValue.length > prompt.length && newValue[newCursorPosition - 1] === '@') {
       console.log('[FloatingPromptInput] @ detected, projectPath:', projectPath);
       setShowFilePicker(true);
       setFilePickerQuery("");
       setCursorPosition(newCursorPosition);
+    }
+
+    // Check if we're typing after / (for slash command search)
+    if (showSlashCommandPicker && newCursorPosition >= cursorPosition) {
+      // Find the / position before cursor
+      let slashPosition = -1;
+      for (let i = newCursorPosition - 1; i >= 0; i--) {
+        if (newValue[i] === '/') {
+          slashPosition = i;
+          break;
+        }
+        // Stop if we hit whitespace (new word)
+        if (newValue[i] === ' ' || newValue[i] === '\n') {
+          break;
+        }
+      }
+
+      if (slashPosition !== -1) {
+        const query = newValue.substring(slashPosition + 1, newCursorPosition);
+        setSlashCommandQuery(query);
+      } else {
+        // / was removed or cursor moved away
+        setShowSlashCommandPicker(false);
+        setSlashCommandQuery("");
+      }
     }
 
     // Check if we're typing after @ (for search query)
@@ -489,6 +531,71 @@ const FloatingPromptInputInner = (
     }, 0);
   };
 
+  const handleSlashCommandSelect = (command: SlashCommand) => {
+    const textarea = isExpanded ? expandedTextareaRef.current : textareaRef.current;
+    if (!textarea) return;
+
+    // Find the / position before cursor
+    let slashPosition = -1;
+    for (let i = cursorPosition - 1; i >= 0; i--) {
+      if (prompt[i] === '/') {
+        slashPosition = i;
+        break;
+      }
+      // Stop if we hit whitespace (new word)
+      if (prompt[i] === ' ' || prompt[i] === '\n') {
+        break;
+      }
+    }
+
+    if (slashPosition === -1) {
+      console.error('[FloatingPromptInput] / position not found');
+      return;
+    }
+
+    // Simply insert the command syntax
+    const beforeSlash = prompt.substring(0, slashPosition);
+    const afterCursor = prompt.substring(cursorPosition);
+    
+    if (command.accepts_arguments) {
+      // Insert command with placeholder for arguments
+      const newPrompt = `${beforeSlash}${command.full_command} `;
+      setPrompt(newPrompt);
+      setShowSlashCommandPicker(false);
+      setSlashCommandQuery("");
+
+      // Focus and position cursor after the command
+      setTimeout(() => {
+        textarea.focus();
+        const newCursorPos = beforeSlash.length + command.full_command.length + 1;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    } else {
+      // Insert command and close picker
+      const newPrompt = `${beforeSlash}${command.full_command} ${afterCursor}`;
+      setPrompt(newPrompt);
+      setShowSlashCommandPicker(false);
+      setSlashCommandQuery("");
+
+      // Focus and position cursor after the command
+      setTimeout(() => {
+        textarea.focus();
+        const newCursorPos = beforeSlash.length + command.full_command.length + 1;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    }
+  };
+
+  const handleSlashCommandPickerClose = () => {
+    setShowSlashCommandPicker(false);
+    setSlashCommandQuery("");
+    // Return focus to textarea
+    setTimeout(() => {
+      const textarea = isExpanded ? expandedTextareaRef.current : textareaRef.current;
+      textarea?.focus();
+    }, 0);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showFilePicker && e.key === 'Escape') {
       e.preventDefault();
@@ -497,7 +604,14 @@ const FloatingPromptInputInner = (
       return;
     }
 
-    if (e.key === "Enter" && !e.shiftKey && !isExpanded && !showFilePicker) {
+    if (showSlashCommandPicker && e.key === 'Escape') {
+      e.preventDefault();
+      setShowSlashCommandPicker(false);
+      setSlashCommandQuery("");
+      return;
+    }
+
+    if (e.key === "Enter" && !e.shiftKey && !isExpanded && !showFilePicker && !showSlashCommandPicker) {
       e.preventDefault();
       handleSend();
     }
@@ -917,6 +1031,18 @@ const FloatingPromptInputInner = (
                     />
                   )}
                 </AnimatePresence>
+
+                {/* Slash Command Picker */}
+                <AnimatePresence>
+                  {showSlashCommandPicker && (
+                    <SlashCommandPicker
+                      projectPath={projectPath}
+                      onSelect={handleSlashCommandSelect}
+                      onClose={handleSlashCommandPickerClose}
+                      initialQuery={slashCommandQuery}
+                    />
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Send/Stop Button */}
@@ -939,7 +1065,7 @@ const FloatingPromptInputInner = (
             </div>
 
             <div className="mt-2 text-xs text-muted-foreground">
-              Press Enter to send, Shift+Enter for new line{projectPath?.trim() && ", @ to mention files, drag & drop or paste images"}
+              Press Enter to send, Shift+Enter for new line{projectPath?.trim() && ", @ to mention files, / for commands, drag & drop or paste images"}
             </div>
           </div>
         </div>

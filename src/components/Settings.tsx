@@ -24,6 +24,7 @@ import { Toast, ToastContainer } from "@/components/ui/toast";
 import { ClaudeVersionSelector } from "./ClaudeVersionSelector";
 import { StorageTab } from "./StorageTab";
 import { HooksEditor } from "./HooksEditor";
+import { SlashCommandsManager } from "./SlashCommandsManager";
 
 interface SettingsProps {
   /**
@@ -357,12 +358,13 @@ export const Settings: React.FC<SettingsProps> = ({
       ) : (
         <div className="flex-1 overflow-y-auto p-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-6">
+            <TabsList className="grid grid-cols-7 w-full">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="permissions">Permissions</TabsTrigger>
               <TabsTrigger value="environment">Environment</TabsTrigger>
               <TabsTrigger value="advanced">Advanced</TabsTrigger>
               <TabsTrigger value="hooks">Hooks</TabsTrigger>
+              <TabsTrigger value="commands">Commands</TabsTrigger>
               <TabsTrigger value="storage">Storage</TabsTrigger>
             </TabsList>
             
@@ -702,6 +704,13 @@ export const Settings: React.FC<SettingsProps> = ({
                     }}
                   />
                 </div>
+              </Card>
+            </TabsContent>
+            
+            {/* Commands Tab */}
+            <TabsContent value="commands">
+              <Card className="p-6">
+                <SlashCommandsManager className="p-0" />
               </Card>
             </TabsContent>
             
