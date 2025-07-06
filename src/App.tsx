@@ -19,8 +19,23 @@ import { MCPManager } from "@/components/MCPManager";
 import { NFOCredits } from "@/components/NFOCredits";
 import { ClaudeBinaryDialog } from "@/components/ClaudeBinaryDialog";
 import { Toast, ToastContainer } from "@/components/ui/toast";
+import { ProjectSettings } from '@/components/ProjectSettings';
 
-type View = "welcome" | "projects" | "agents" | "editor" | "settings" | "claude-file-editor" | "claude-code-session" | "usage-dashboard" | "mcp";
+type View = 
+  | "welcome" 
+  | "projects" 
+  | "editor" 
+  | "claude-file-editor" 
+  | "claude-code-session" 
+  | "settings"
+  | "cc-agents"
+  | "create-agent"
+  | "github-agents"
+  | "agent-execution"
+  | "agent-run-view"
+  | "mcp"
+  | "usage-dashboard"
+  | "project-settings";
 
 /**
  * Main App component - Manages the Claude directory browser UI
@@ -39,6 +54,8 @@ function App() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [activeClaudeSessionId, setActiveClaudeSessionId] = useState<string | null>(null);
   const [isClaudeStreaming, setIsClaudeStreaming] = useState(false);
+  const [projectForSettings, setProjectForSettings] = useState<Project | null>(null);
+  const [previousView, setPreviousView] = useState<View>("welcome");
 
   // Load projects on mount when in projects view
   useEffect(() => {
@@ -157,6 +174,31 @@ function App() {
     setView(newView);
   };
 
+  /**
+   * Handles navigating to hooks configuration
+   */
+  const handleProjectSettings = (project: Project) => {
+    setProjectForSettings(project);
+    handleViewChange("project-settings");
+  };
+
+  /**
+   * Handles navigating to hooks configuration from a project path
+   */
+  const handleProjectSettingsFromPath = (projectPath: string) => {
+    // Create a temporary project object from the path
+    const projectId = projectPath.replace(/[^a-zA-Z0-9]/g, '-');
+    const tempProject: Project = {
+      id: projectId,
+      path: projectPath,
+      sessions: [],
+      created_at: Date.now() / 1000
+    };
+    setProjectForSettings(tempProject);
+    setPreviousView(view);
+    handleViewChange("project-settings");
+  };
+
   const renderContent = () => {
     switch (view) {
       case "welcome":
@@ -186,7 +228,7 @@ function App() {
                 >
                   <Card 
                     className="h-64 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg border border-border/50 shimmer-hover trailing-border"
-                    onClick={() => handleViewChange("agents")}
+                    onClick={() => handleViewChange("cc-agents")}
                   >
                     <div className="h-full flex flex-col items-center justify-center p-8">
                       <Bot className="h-16 w-16 mb-4 text-primary" />
@@ -217,11 +259,11 @@ function App() {
           </div>
         );
 
-      case "agents":
+      case "cc-agents":
         return (
-          <div className="flex-1 overflow-hidden">
-            <CCAgents onBack={() => handleViewChange("welcome")} />
-          </div>
+          <CCAgents 
+            onBack={() => handleViewChange("welcome")} 
+          />
         );
 
       case "editor":
@@ -334,6 +376,9 @@ function App() {
                         <ProjectList
                           projects={projects}
                           onProjectClick={handleProjectClick}
+                          onProjectSettings={handleProjectSettings}
+                          loading={loading}
+                          className="animate-fade-in"
                         />
                       ) : (
                         <div className="py-8 text-center">
@@ -370,6 +415,7 @@ function App() {
               setIsClaudeStreaming(isStreaming);
               setActiveClaudeSessionId(sessionId);
             }}
+            onProjectSettings={handleProjectSettingsFromPath}
           />
         );
       
@@ -382,6 +428,20 @@ function App() {
         return (
           <MCPManager onBack={() => handleViewChange("welcome")} />
         );
+      
+      case "project-settings":
+        if (projectForSettings) {
+          return (
+            <ProjectSettings
+              project={projectForSettings}
+              onBack={() => {
+                setProjectForSettings(null);
+                handleViewChange(previousView || "projects");
+              }}
+            />
+          );
+        }
+        break;
       
       default:
         return null;

@@ -1,11 +1,26 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { FolderOpen, ChevronRight, Clock } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Pagination } from "@/components/ui/pagination";
-import { cn } from "@/lib/utils";
-import { formatUnixTimestamp } from "@/lib/date-utils";
+import { 
+  FolderOpen, 
+  Calendar, 
+  FileText, 
+  ChevronRight, 
+  Settings,
+  MoreVertical
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Project } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { formatTimeAgo } from "@/lib/date-utils";
+import { Pagination } from "@/components/ui/pagination";
 
 interface ProjectListProps {
   /**
@@ -17,12 +32,28 @@ interface ProjectListProps {
    */
   onProjectClick: (project: Project) => void;
   /**
+   * Callback when hooks configuration is clicked
+   */
+  onProjectSettings?: (project: Project) => void;
+  /**
+   * Whether the list is currently loading
+   */
+  loading?: boolean;
+  /**
    * Optional className for styling
    */
   className?: string;
 }
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 12;
+
+/**
+ * Extracts the project name from the full path
+ */
+const getProjectName = (path: string): string => {
+  const parts = path.split('/').filter(Boolean);
+  return parts[parts.length - 1] || path;
+};
 
 /**
  * ProjectList component - Displays a paginated list of projects with hover animations
@@ -36,6 +67,7 @@ const ITEMS_PER_PAGE = 5;
 export const ProjectList: React.FC<ProjectListProps> = ({
   projects,
   onProjectClick,
+  onProjectSettings,
   className,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -66,27 +98,63 @@ export const ProjectList: React.FC<ProjectListProps> = ({
             }}
           >
             <Card
-              className="transition-all hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              className="p-4 hover:shadow-md transition-all duration-200 cursor-pointer group"
               onClick={() => onProjectClick(project)}
             >
-              <CardContent className="flex items-center justify-between p-3">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <FolderOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">{project.path}</p>
-                    <div className="flex items-center space-x-3 text-xs text-muted-foreground">
-                      <span>
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+                    <h3 className="font-semibold text-base truncate">
+                      {getProjectName(project.path)}
+                    </h3>
+                    {project.sessions.length > 0 && (
+                      <Badge variant="secondary" className="shrink-0">
                         {project.sessions.length} session{project.sessions.length !== 1 ? 's' : ''}
-                      </span>
-                      <div className="flex items-center space-x-1">
-                        <Clock className="h-3 w-3" />
-                        <span>{formatUnixTimestamp(project.created_at)}</span>
-                      </div>
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground mb-3 font-mono truncate">
+                    {project.path}
+                  </p>
+                  
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      <span>{formatTimeAgo(project.created_at * 1000)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      <span>{project.sessions.length} conversations</span>
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              </CardContent>
+                
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {onProjectSettings && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onProjectSettings(project);
+                          }}
+                        >
+                          <Settings className="h-4 w-4 mr-2" />
+                          Hooks
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </div>
             </Card>
           </motion.div>
         ))}

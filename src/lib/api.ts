@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { HooksConfiguration } from '@/types/hooks';
 
 /** Process type for tracking in ProcessRegistry */
 export type ProcessType = 
@@ -116,6 +117,7 @@ export interface Agent {
   system_prompt: string;
   default_task?: string;
   model: string;
+  hooks?: string; // JSON string of HooksConfiguration
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +131,7 @@ export interface AgentExport {
     system_prompt: string;
     default_task?: string;
     model: string;
+    hooks?: string;
   };
 }
 
@@ -635,6 +638,7 @@ export const api = {
    * @param system_prompt - The system prompt for the agent
    * @param default_task - Optional default task
    * @param model - Optional model (defaults to 'sonnet')
+   * @param hooks - Optional hooks configuration as JSON string
    * @returns Promise resolving to the created agent
    */
   async createAgent(
@@ -642,7 +646,8 @@ export const api = {
     icon: string, 
     system_prompt: string, 
     default_task?: string, 
-    model?: string
+    model?: string,
+    hooks?: string
   ): Promise<Agent> {
     try {
       return await invoke<Agent>('create_agent', { 
@@ -650,7 +655,8 @@ export const api = {
         icon, 
         systemPrompt: system_prompt,
         defaultTask: default_task,
-        model
+        model,
+        hooks
       });
     } catch (error) {
       console.error("Failed to create agent:", error);
@@ -666,6 +672,7 @@ export const api = {
    * @param system_prompt - The updated system prompt
    * @param default_task - Optional default task
    * @param model - Optional model
+   * @param hooks - Optional hooks configuration as JSON string
    * @returns Promise resolving to the updated agent
    */
   async updateAgent(
@@ -674,7 +681,8 @@ export const api = {
     icon: string, 
     system_prompt: string, 
     default_task?: string, 
-    model?: string
+    model?: string,
+    hooks?: string
   ): Promise<Agent> {
     try {
       return await invoke<Agent>('update_agent', { 
@@ -683,7 +691,8 @@ export const api = {
         icon, 
         systemPrompt: system_prompt,
         defaultTask: default_task,
-        model
+        model,
+        hooks
       });
     } catch (error) {
       console.error("Failed to update agent:", error);
@@ -1646,4 +1655,74 @@ export const api = {
     }
   },
 
+  /**
+   * Get hooks configuration for a specific scope
+   * @param scope - The configuration scope: 'user', 'project', or 'local'
+   * @param projectPath - Project path (required for project and local scopes)
+   * @returns Promise resolving to the hooks configuration
+   */
+  async getHooksConfig(scope: 'user' | 'project' | 'local', projectPath?: string): Promise<HooksConfiguration> {
+    try {
+      return await invoke<HooksConfiguration>("get_hooks_config", { scope, projectPath });
+    } catch (error) {
+      console.error("Failed to get hooks config:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update hooks configuration for a specific scope
+   * @param scope - The configuration scope: 'user', 'project', or 'local'
+   * @param hooks - The hooks configuration to save
+   * @param projectPath - Project path (required for project and local scopes)
+   * @returns Promise resolving to success message
+   */
+  async updateHooksConfig(
+    scope: 'user' | 'project' | 'local',
+    hooks: HooksConfiguration,
+    projectPath?: string
+  ): Promise<string> {
+    try {
+      return await invoke<string>("update_hooks_config", { scope, projectPath, hooks });
+    } catch (error) {
+      console.error("Failed to update hooks config:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Validate a hook command syntax
+   * @param command - The shell command to validate
+   * @returns Promise resolving to validation result
+   */
+  async validateHookCommand(command: string): Promise<{ valid: boolean; message: string }> {
+    try {
+      return await invoke<{ valid: boolean; message: string }>("validate_hook_command", { command });
+    } catch (error) {
+      console.error("Failed to validate hook command:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get merged hooks configuration (respecting priority)
+   * @param projectPath - The project path
+   * @returns Promise resolving to merged hooks configuration
+   */
+  async getMergedHooksConfig(projectPath: string): Promise<HooksConfiguration> {
+    try {
+      const [userHooks, projectHooks, localHooks] = await Promise.all([
+        this.getHooksConfig('user'),
+        this.getHooksConfig('project', projectPath),
+        this.getHooksConfig('local', projectPath)
+      ]);
+
+      // Import HooksManager for merging
+      const { HooksManager } = await import('@/lib/hooksManager');
+      return HooksManager.mergeConfigs(userHooks, projectHooks, localHooks);
+    } catch (error) {
+      console.error("Failed to get merged hooks config:", error);
+      throw error;
+    }
+  }
 };
