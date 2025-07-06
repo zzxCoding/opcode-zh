@@ -282,8 +282,8 @@ function App() {
       
       case "projects":
         return (
-          <div className="flex h-full items-center justify-center p-4 overflow-y-auto">
-            <div className="w-full max-w-2xl">
+          <div className="flex-1 overflow-y-auto">
+            <div className="container mx-auto p-6">
               {/* Header with back button */}
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
@@ -299,7 +299,7 @@ function App() {
                 >
                   ← Back to Home
                 </Button>
-                <div className="text-center">
+                <div className="mb-4">
                   <h1 className="text-3xl font-bold tracking-tight">CC Projects</h1>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Browse your Claude Code sessions
@@ -312,7 +312,7 @@ function App() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive"
+                  className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive max-w-2xl"
                 >
                   {error}
                 </motion.div>
@@ -350,18 +350,18 @@ function App() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
                       transition={{ duration: 0.3 }}
-                      className="space-y-4"
                     >
                       {/* New session button at the top */}
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
+                        className="mb-4"
                       >
                         <Button
                           onClick={handleNewSession}
                           size="default"
-                          className="w-full"
+                          className="w-full max-w-md"
                         >
                           <Plus className="mr-2 h-4 w-4" />
                           New Claude Code session

@@ -85,7 +85,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {currentProjects.map((project, index) => (
           <motion.div
             key={project.id}
@@ -98,19 +98,21 @@ export const ProjectList: React.FC<ProjectListProps> = ({
             }}
           >
             <Card
-              className="p-4 hover:shadow-md transition-all duration-200 cursor-pointer group"
+              className="p-4 hover:shadow-md transition-all duration-200 cursor-pointer group h-full"
               onClick={() => onProjectClick(project)}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <FolderOpen className="h-5 w-5 text-primary shrink-0" />
-                    <h3 className="font-semibold text-base truncate">
-                      {getProjectName(project.path)}
-                    </h3>
+              <div className="flex flex-col h-full">
+                <div className="flex-1">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+                      <h3 className="font-semibold text-base truncate">
+                        {getProjectName(project.path)}
+                      </h3>
+                    </div>
                     {project.sessions.length > 0 && (
-                      <Badge variant="secondary" className="shrink-0">
-                        {project.sessions.length} session{project.sessions.length !== 1 ? 's' : ''}
+                      <Badge variant="secondary" className="shrink-0 ml-2">
+                        {project.sessions.length}
                       </Badge>
                     )}
                   </div>
@@ -118,41 +120,43 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                   <p className="text-sm text-muted-foreground mb-3 font-mono truncate">
                     {project.path}
                   </p>
-                  
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
                       <span>{formatTimeAgo(project.created_at * 1000)}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <FileText className="h-3 w-3" />
-                      <span>{project.sessions.length} conversations</span>
+                      <span>{project.sessions.length}</span>
                     </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {onProjectSettings && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onProjectSettings(project);
-                          }}
-                        >
-                          <Settings className="h-4 w-4 mr-2" />
-                          Hooks
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {onProjectSettings && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onProjectSettings(project);
+                            }}
+                          >
+                            <Settings className="h-4 w-4 mr-2" />
+                            Hooks
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
                 </div>
               </div>
             </Card>
