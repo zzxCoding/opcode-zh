@@ -19,7 +19,6 @@ import { FilePicker } from "./FilePicker";
 import { ImagePreview } from "./ImagePreview";
 import { type FileEntry } from "@/lib/api";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { invoke } from "@tauri-apps/api/core";
 
 interface FloatingPromptInputProps {
   /**
@@ -220,33 +219,39 @@ const FloatingPromptInputInner = (
 
   // Helper function to check if a file is an image
   const isImageFile = (path: string): boolean => {
+    // Check if it's a data URL
+    if (path.startsWith('data:image/')) {
+      return true;
+    }
+    // Otherwise check file extension
     const ext = path.split('.').pop()?.toLowerCase();
     return ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'bmp'].includes(ext || '');
   };
 
   // Extract image paths from prompt text
   const extractImagePaths = (text: string): string[] => {
-    console.log('[extractImagePaths] Input text:', text);
+    console.log('[extractImagePaths] Input text length:', text.length);
     
     // Updated regex to handle both quoted and unquoted paths
-    // Pattern 1: @"path with spaces" - quoted paths
+    // Pattern 1: @"path with spaces or data URLs" - quoted paths
     // Pattern 2: @path - unquoted paths (continues until @ or end)
     const quotedRegex = /@"([^"]+)"/g;
     const unquotedRegex = /@([^@\n\s]+)/g;
     
     const pathsSet = new Set<string>(); // Use Set to ensure uniqueness
     
-    // First, extract quoted paths
+    // First, extract quoted paths (including data URLs)
     let matches = Array.from(text.matchAll(quotedRegex));
-    console.log('[extractImagePaths] Quoted matches:', matches.map(m => m[0]));
+    console.log('[extractImagePaths] Quoted matches:', matches.length);
     
     for (const match of matches) {
       const path = match[1]; // No need to trim, quotes preserve exact path
-      console.log('[extractImagePaths] Processing quoted path:', path);
+      console.log('[extractImagePaths] Processing quoted path:', path.startsWith('data:') ? 'data URL' : path);
       
-      // Convert relative path to absolute if needed
-      const fullPath = path.startsWith('/') ? path : (projectPath ? `${projectPath}/${path}` : path);
-      console.log('[extractImagePaths] Full path:', fullPath, 'Is image:', isImageFile(fullPath));
+      // For data URLs, use as-is; for file paths, convert to absolute
+      const fullPath = path.startsWith('data:') 
+        ? path 
+        : (path.startsWith('/') ? path : (projectPath ? `${projectPath}/${path}` : path));
       
       if (isImageFile(fullPath)) {
         pathsSet.add(fullPath);
@@ -256,25 +261,27 @@ const FloatingPromptInputInner = (
     // Remove quoted mentions from text to avoid double-matching
     let textWithoutQuoted = text.replace(quotedRegex, '');
     
-    // Then extract unquoted paths
+    // Then extract unquoted paths (typically file paths)
     matches = Array.from(textWithoutQuoted.matchAll(unquotedRegex));
-    console.log('[extractImagePaths] Unquoted matches:', matches.map(m => m[0]));
+    console.log('[extractImagePaths] Unquoted matches:', matches.length);
     
     for (const match of matches) {
       const path = match[1].trim();
+      // Skip if it looks like a data URL fragment (shouldn't happen with proper quoting)
+      if (path.includes('data:')) continue;
+      
       console.log('[extractImagePaths] Processing unquoted path:', path);
       
       // Convert relative path to absolute if needed
       const fullPath = path.startsWith('/') ? path : (projectPath ? `${projectPath}/${path}` : path);
-      console.log('[extractImagePaths] Full path:', fullPath, 'Is image:', isImageFile(fullPath));
       
       if (isImageFile(fullPath)) {
         pathsSet.add(fullPath);
       }
     }
 
-    const uniquePaths = Array.from(pathsSet); // Convert Set back to Array
-    console.log('[extractImagePaths] Final extracted paths (unique):', uniquePaths);
+    const uniquePaths = Array.from(pathsSet);
+    console.log('[extractImagePaths] Final extracted paths (unique):', uniquePaths.length);
     return uniquePaths;
   };
 
@@ -479,7 +486,7 @@ const FloatingPromptInputInner = (
 
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
-    if (!items || !projectPath) return;
+    if (!items) return;
 
     for (const item of items) {
       if (item.type.startsWith('image/')) {
@@ -492,24 +499,13 @@ const FloatingPromptInputInner = (
         try {
           // Convert blob to base64
           const reader = new FileReader();
-          reader.onload = async () => {
+          reader.onload = () => {
             const base64Data = reader.result as string;
             
-            // Generate a session-specific ID for the image
-            const sessionId = `paste-${Date.now()}`;
-            
-            // Save the image via Tauri command
-            const imagePath = await invoke<string>('save_clipboard_image', {
-              projectPath,
-              sessionId,
-              imageData: base64Data,
-              mimeType: item.type
-            });
-
-            // Add the image path as a mention to the prompt
+            // Add the base64 data URL directly to the prompt
             setPrompt(currentPrompt => {
-              // Wrap path in quotes if it contains spaces
-              const mention = imagePath.includes(' ') ? `@"${imagePath}"` : `@${imagePath}`;
+              // Use the data URL directly as the image reference
+              const mention = `@"${base64Data}"`;
               const newPrompt = currentPrompt + (currentPrompt.endsWith(' ') || currentPrompt === '' ? '' : ' ') + mention + ' ';
               
               // Focus the textarea and move cursor to end
@@ -548,6 +544,17 @@ const FloatingPromptInputInner = (
   const handleRemoveImage = (index: number) => {
     // Remove the corresponding @mention from the prompt
     const imagePath = embeddedImages[index];
+    
+    // For data URLs, we need to handle them specially since they're always quoted
+    if (imagePath.startsWith('data:')) {
+      // Simply remove the exact quoted data URL
+      const quotedPath = `@"${imagePath}"`;
+      const newPrompt = prompt.replace(quotedPath, '').trim();
+      setPrompt(newPrompt);
+      return;
+    }
+    
+    // For file paths, use the original logic
     const escapedPath = imagePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const escapedRelativePath = imagePath.replace(projectPath + '/', '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
