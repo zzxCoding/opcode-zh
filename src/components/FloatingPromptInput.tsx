@@ -439,10 +439,29 @@ const FloatingPromptInputInner = (
 
   const handleFileSelect = (entry: FileEntry) => {
     if (textareaRef.current) {
+      // Find the @ position before cursor
+      let atPosition = -1;
+      for (let i = cursorPosition - 1; i >= 0; i--) {
+        if (prompt[i] === '@') {
+          atPosition = i;
+          break;
+        }
+        // Stop if we hit whitespace (new word)
+        if (prompt[i] === ' ' || prompt[i] === '\n') {
+          break;
+        }
+      }
+
+      if (atPosition === -1) {
+        // @ not found, this shouldn't happen but handle gracefully
+        console.error('[FloatingPromptInput] @ position not found');
+        return;
+      }
+
       // Replace the @ and partial query with the selected path (file or directory)
       const textarea = textareaRef.current;
-      const beforeAt = prompt.substring(0, cursorPosition - 1);
-      const afterCursor = prompt.substring(cursorPosition + filePickerQuery.length);
+      const beforeAt = prompt.substring(0, atPosition);
+      const afterCursor = prompt.substring(cursorPosition);
       const relativePath = entry.path.startsWith(projectPath || '')
         ? entry.path.slice((projectPath || '').length + 1)
         : entry.path;
