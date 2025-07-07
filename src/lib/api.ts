@@ -1825,11 +1825,12 @@ export const api = {
   /**
    * Deletes a slash command
    * @param commandId - Unique identifier of the command to delete
+   * @param projectPath - Optional project path for deleting project commands
    * @returns Promise resolving to deletion message
    */
-  async slashCommandDelete(commandId: string): Promise<string> {
+  async slashCommandDelete(commandId: string, projectPath?: string): Promise<string> {
     try {
-      return await invoke<string>("slash_command_delete", { commandId });
+      return await invoke<string>("slash_command_delete", { commandId, projectPath });
     } catch (error) {
       console.error("Failed to delete slash command:", error);
       throw error;

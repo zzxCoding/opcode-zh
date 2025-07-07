@@ -33,6 +33,7 @@ import { COMMON_TOOL_MATCHERS } from "@/types/hooks";
 interface SlashCommandsManagerProps {
   projectPath?: string;
   className?: string;
+  scopeFilter?: 'project' | 'user' | 'all';
 }
 
 interface CommandForm {
@@ -88,13 +89,14 @@ const getCommandIcon = (command: SlashCommand) => {
 export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
   projectPath,
   className,
+  scopeFilter = 'all',
 }) => {
   const [commands, setCommands] = useState<SlashCommand[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedScope, setSelectedScope] = useState<'all' | 'project' | 'user'>('all');
+  const [selectedScope, setSelectedScope] = useState<'all' | 'project' | 'user'>(scopeFilter === 'all' ? 'all' : scopeFilter as 'project' | 'user');
   const [expandedCommands, setExpandedCommands] = useState<Set<string>>(new Set());
   
   // Edit dialog state
@@ -108,6 +110,11 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
     allowedTools: [],
     scope: 'user'
   });
+
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [commandToDelete, setCommandToDelete] = useState<SlashCommand | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Load commands on mount
   useEffect(() => {
@@ -136,7 +143,7 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
       content: "",
       description: "",
       allowedTools: [],
-      scope: projectPath ? 'project' : 'user'
+      scope: scopeFilter !== 'all' ? scopeFilter : (projectPath ? 'project' : 'user')
     });
     setEditDialogOpen(true);
   };
@@ -179,18 +186,33 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
     }
   };
 
-  const handleDelete = async (command: SlashCommand) => {
-    if (!confirm(`Delete command "${command.full_command}"?`)) {
-      return;
-    }
+  const handleDeleteClick = (command: SlashCommand) => {
+    setCommandToDelete(command);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!commandToDelete) return;
 
     try {
-      await api.slashCommandDelete(command.id);
+      setDeleting(true);
+      setError(null);
+      await api.slashCommandDelete(commandToDelete.id, projectPath);
+      setDeleteDialogOpen(false);
+      setCommandToDelete(null);
       await loadCommands();
     } catch (err) {
       console.error("Failed to delete command:", err);
-      setError("Failed to delete command");
+      const errorMessage = err instanceof Error ? err.message : "Failed to delete command";
+      setError(errorMessage);
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setCommandToDelete(null);
   };
 
   const toggleExpanded = (commandId: string) => {
@@ -226,6 +248,16 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
 
   // Filter commands
   const filteredCommands = commands.filter(cmd => {
+    // Hide default commands
+    if (cmd.scope === 'default') {
+      return false;
+    }
+
+    // Apply scopeFilter if set to specific scope
+    if (scopeFilter !== 'all' && cmd.scope !== scopeFilter) {
+      return false;
+    }
+
     // Scope filter
     if (selectedScope !== 'all' && cmd.scope !== selectedScope) {
       return false;
@@ -262,9 +294,13 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Slash Commands</h3>
+          <h3 className="text-lg font-semibold">
+            {scopeFilter === 'project' ? 'Project Slash Commands' : 'Slash Commands'}
+          </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Create custom commands to streamline your workflow
+            {scopeFilter === 'project' 
+              ? 'Create custom commands for this project' 
+              : 'Create custom commands to streamline your workflow'}
           </p>
         </div>
         <Button onClick={handleCreateNew} size="sm" className="gap-2">
@@ -286,16 +322,18 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
             />
           </div>
         </div>
-        <Select value={selectedScope} onValueChange={(value: any) => setSelectedScope(value)}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Commands</SelectItem>
-            <SelectItem value="project">Project</SelectItem>
-            <SelectItem value="user">User</SelectItem>
-          </SelectContent>
-        </Select>
+        {scopeFilter === 'all' && (
+          <Select value={selectedScope} onValueChange={(value: any) => setSelectedScope(value)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Commands</SelectItem>
+              <SelectItem value="project">Project</SelectItem>
+              <SelectItem value="user">User</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Error Message */}
@@ -316,11 +354,17 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
           <div className="text-center">
             <Command className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-sm text-muted-foreground">
-              {searchQuery ? "No commands found" : "No commands created yet"}
+              {searchQuery 
+                ? "No commands found" 
+                : scopeFilter === 'project' 
+                  ? "No project commands created yet" 
+                  : "No commands created yet"}
             </p>
             {!searchQuery && (
               <Button onClick={handleCreateNew} variant="outline" size="sm" className="mt-4">
-                Create your first command
+                {scopeFilter === 'project' 
+                  ? "Create your first project command" 
+                  : "Create your first command"}
               </Button>
             )}
           </div>
@@ -414,7 +458,7 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDelete(command)}
+                              onClick={() => handleDeleteClick(command)}
                               className="h-8 w-8 text-destructive hover:text-destructive"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -465,24 +509,28 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
               <Select 
                 value={commandForm.scope} 
                 onValueChange={(value: 'project' | 'user') => setCommandForm(prev => ({ ...prev, scope: value }))}
-                disabled={!projectPath && commandForm.scope === 'project'}
+                disabled={scopeFilter !== 'all' || (!projectPath && commandForm.scope === 'project')}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      User (Global)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="project" disabled={!projectPath}>
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4" />
-                      Project
-                    </div>
-                  </SelectItem>
+                  {(scopeFilter === 'all' || scopeFilter === 'user') && (
+                    <SelectItem value="user">
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4" />
+                        User (Global)
+                      </div>
+                    </SelectItem>
+                  )}
+                  {(scopeFilter === 'all' || scopeFilter === 'project') && (
+                    <SelectItem value="project" disabled={!projectPath}>
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="h-4 w-4" />
+                        Project
+                      </div>
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -613,6 +661,53 @@ export const SlashCommandsManager: React.FC<SlashCommandsManagerProps> = ({
                 <>
                   <Save className="h-4 w-4 mr-2" />
                   Save
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Command</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <p>Are you sure you want to delete this command?</p>
+            {commandToDelete && (
+              <div className="p-3 bg-muted rounded-md">
+                <code className="text-sm font-mono">{commandToDelete.full_command}</code>
+                {commandToDelete.description && (
+                  <p className="text-sm text-muted-foreground mt-1">{commandToDelete.description}</p>
+                )}
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. The command file will be permanently deleted.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelDelete} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
                 </>
               )}
             </Button>

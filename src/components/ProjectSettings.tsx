@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { HooksEditor } from '@/components/HooksEditor';
+import { SlashCommandsManager } from '@/components/SlashCommandsManager';
 import { api } from '@/lib/api';
 import { 
   AlertTriangle, 
@@ -11,7 +12,8 @@ import {
   Settings,
   FolderOpen,
   GitBranch,
-  Shield
+  Shield,
+  Command
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -31,7 +33,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({
   onBack,
   className
 }) => {
-  const [activeTab, setActiveTab] = useState('project');
+  const [activeTab, setActiveTab] = useState('commands');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
   // Other hooks settings
@@ -88,7 +90,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({
             </Button>
             <div className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-muted-foreground" />
-              <h2 className="text-xl font-semibold">Hooks</h2>
+              <h2 className="text-xl font-semibold">Project Settings</h2>
             </div>
           </div>
         </div>
@@ -106,6 +108,10 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({
         <div className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-6">
+              <TabsTrigger value="commands" className="gap-2">
+                <Command className="h-4 w-4" />
+                Slash Commands
+              </TabsTrigger>
               <TabsTrigger value="project" className="gap-2">
                 <GitBranch className="h-4 w-4" />
                 Project Hooks
@@ -115,6 +121,26 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({
                 Local Hooks
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="commands" className="space-y-6">
+              <Card className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Project Slash Commands</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Custom commands that are specific to this project. These commands are stored in
+                      <code className="mx-1 px-2 py-1 bg-muted rounded text-xs">.claude/slash-commands/</code>
+                      and can be committed to version control.
+                    </p>
+                  </div>
+                  
+                  <SlashCommandsManager
+                    projectPath={project.path}
+                    scopeFilter="project"
+                  />
+                </div>
+              </Card>
+            </TabsContent>
 
             <TabsContent value="project" className="space-y-6">
               <Card className="p-6">

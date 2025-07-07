@@ -10,7 +10,8 @@ import {
   Settings,
   ChevronUp,
   X,
-  Hash
+  Hash,
+  Command
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ import { FloatingPromptInput, type FloatingPromptInputRef } from "./FloatingProm
 import { ErrorBoundary } from "./ErrorBoundary";
 import { TimelineNavigator } from "./TimelineNavigator";
 import { CheckpointSettings } from "./CheckpointSettings";
+import { SlashCommandsManager } from "./SlashCommandsManager";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SplitPane } from "@/components/ui/split-pane";
@@ -87,6 +89,7 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const [timelineVersion, setTimelineVersion] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showForkDialog, setShowForkDialog] = useState(false);
+  const [showSlashCommandsSettings, setShowSlashCommandsSettings] = useState(false);
   const [forkCheckpointId, setForkCheckpointId] = useState<string | null>(null);
   const [forkSessionName, setForkSessionName] = useState("");
   
@@ -995,6 +998,17 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
                 Hooks
               </Button>
             )}
+            {projectPath && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSlashCommandsSettings(true)}
+                disabled={isLoading}
+              >
+                <Command className="h-4 w-4 mr-2" />
+                Commands
+              </Button>
+            )}
             <div className="flex items-center gap-2">
               {showSettings && (
                 <CheckpointSettings
@@ -1383,6 +1397,23 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
               projectPath={projectPath}
               onClose={() => setShowSettings(false)}
             />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Slash Commands Settings Dialog */}
+      {showSlashCommandsSettings && (
+        <Dialog open={showSlashCommandsSettings} onOpenChange={setShowSlashCommandsSettings}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>Slash Commands</DialogTitle>
+              <DialogDescription>
+                Manage project-specific slash commands for {projectPath}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              <SlashCommandsManager projectPath={projectPath} />
+            </div>
           </DialogContent>
         </Dialog>
       )}
