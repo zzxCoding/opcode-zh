@@ -105,11 +105,11 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
     
     // Filter by active tab
     if (activeTab === "default") {
-      // No default/built-in commands yet
-      filteredByTab = [];
+      // Show default/built-in commands
+      filteredByTab = commands.filter(cmd => cmd.scope === "default");
     } else {
       // Show all custom commands (both user and project)
-      filteredByTab = commands;
+      filteredByTab = commands.filter(cmd => cmd.scope !== "default");
     }
     
     // Then filter by search query
@@ -309,15 +309,64 @@ export const SlashCommandPicker: React.FC<SlashCommandPickerProps> = ({
           <>
             {/* Default Tab Content */}
             {activeTab === "default" && (
-              <div className="flex flex-col items-center justify-center h-full">
-                <Command className="h-8 w-8 text-muted-foreground mb-2" />
-                <span className="text-sm text-muted-foreground">
-                  No default commands available
-                </span>
-                <p className="text-xs text-muted-foreground mt-2 text-center px-4">
-                  Default commands are built-in system commands
-                </p>
-              </div>
+              <>
+                {filteredCommands.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <Command className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      {searchQuery ? 'No commands found' : 'No default commands available'}
+                    </span>
+                    {!searchQuery && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center px-4">
+                        Default commands are built-in system commands
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {filteredCommands.length > 0 && (
+                  <div className="p-2" ref={commandListRef}>
+                    <div className="space-y-0.5">
+                      {filteredCommands.map((command, index) => {
+                        const Icon = getCommandIcon(command);
+                        const isSelected = index === selectedIndex;
+                        
+                        return (
+                          <button
+                            key={command.id}
+                            data-index={index}
+                            onClick={() => handleCommandClick(command)}
+                            onMouseEnter={() => setSelectedIndex(index)}
+                            className={cn(
+                              "w-full flex items-start gap-3 px-3 py-2 rounded-md",
+                              "hover:bg-accent transition-colors",
+                              "text-left",
+                              isSelected && "bg-accent"
+                            )}
+                          >
+                            <Icon className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                            <div className="flex-1 overflow-hidden">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">
+                                  {command.full_command}
+                                </span>
+                                <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted rounded">
+                                  {command.scope}
+                                </span>
+                              </div>
+                              {command.description && (
+                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                  {command.description}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             
             {/* Custom Tab Content */}

@@ -197,6 +197,54 @@ fn find_markdown_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
     Ok(())
 }
 
+/// Create default/built-in slash commands
+fn create_default_commands() -> Vec<SlashCommand> {
+    vec![
+        SlashCommand {
+            id: "default-add-dir".to_string(),
+            name: "add-dir".to_string(),
+            full_command: "/add-dir".to_string(),
+            scope: "default".to_string(),
+            namespace: None,
+            file_path: "".to_string(),
+            content: "Add additional working directories".to_string(),
+            description: Some("Add additional working directories".to_string()),
+            allowed_tools: vec![],
+            has_bash_commands: false,
+            has_file_references: false,
+            accepts_arguments: false,
+        },
+        SlashCommand {
+            id: "default-init".to_string(),
+            name: "init".to_string(),
+            full_command: "/init".to_string(),
+            scope: "default".to_string(),
+            namespace: None,
+            file_path: "".to_string(),
+            content: "Initialize project with CLAUDE.md guide".to_string(),
+            description: Some("Initialize project with CLAUDE.md guide".to_string()),
+            allowed_tools: vec![],
+            has_bash_commands: false,
+            has_file_references: false,
+            accepts_arguments: false,
+        },
+        SlashCommand {
+            id: "default-review".to_string(),
+            name: "review".to_string(),
+            full_command: "/review".to_string(),
+            scope: "default".to_string(),
+            namespace: None,
+            file_path: "".to_string(),
+            content: "Request code review".to_string(),
+            description: Some("Request code review".to_string()),
+            allowed_tools: vec![],
+            has_bash_commands: false,
+            has_file_references: false,
+            accepts_arguments: false,
+        },
+    ]
+}
+
 /// Discover all custom slash commands
 #[tauri::command]
 pub async fn slash_commands_list(
@@ -204,6 +252,9 @@ pub async fn slash_commands_list(
 ) -> Result<Vec<SlashCommand>, String> {
     info!("Discovering slash commands");
     let mut commands = Vec::new();
+    
+    // Add default commands
+    commands.extend(create_default_commands());
     
     // Load project commands if project path is provided
     if let Some(proj_path) = project_path {
