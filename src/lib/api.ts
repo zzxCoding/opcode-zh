@@ -99,14 +99,14 @@ export interface FileEntry {
  * Represents a Claude installation found on the system
  */
 export interface ClaudeInstallation {
-  /** Full path to the Claude binary (or "claude-code" for sidecar) */
+  /** Full path to the Claude binary */
   path: string;
   /** Version string if available */
   version?: string;
-  /** Source of discovery (e.g., "nvm", "system", "homebrew", "which", "bundled") */
+  /** Source of discovery (e.g., "nvm", "system", "homebrew", "which") */
   source: string;
   /** Type of installation */
-  installation_type: "Bundled" | "System" | "Custom";
+  installation_type: "System" | "Custom";
 }
 
 // Agent API types

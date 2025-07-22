@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { api, type ClaudeInstallation } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { CheckCircle, Package, HardDrive, Settings } from "lucide-react";
+import { CheckCircle, HardDrive, Settings } from "lucide-react";
 
 interface ClaudeVersionSelectorProps {
   /**
@@ -37,7 +37,7 @@ interface ClaudeVersionSelectorProps {
 
 /**
  * ClaudeVersionSelector component for selecting Claude Code installations
- * Supports bundled sidecar, system installations, and user preferences
+ * Supports system installations and user preferences
  * 
  * @example
  * <ClaudeVersionSelector
@@ -108,8 +108,6 @@ export const ClaudeVersionSelector: React.FC<ClaudeVersionSelectorProps> = ({
 
   const getInstallationIcon = (installation: ClaudeInstallation) => {
     switch (installation.installation_type) {
-      case "Bundled":
-        return <Package className="h-4 w-4" />;
       case "System":
         return <HardDrive className="h-4 w-4" />;
       case "Custom":
@@ -121,8 +119,6 @@ export const ClaudeVersionSelector: React.FC<ClaudeVersionSelectorProps> = ({
 
   const getInstallationTypeColor = (installation: ClaudeInstallation) => {
     switch (installation.installation_type) {
-      case "Bundled":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
       case "System":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
       case "Custom":
@@ -165,7 +161,6 @@ export const ClaudeVersionSelector: React.FC<ClaudeVersionSelectorProps> = ({
     );
   }
 
-  const bundledInstallations = installations.filter(i => i.installation_type === "Bundled");
   const systemInstallations = installations.filter(i => i.installation_type === "System");
   const customInstallations = installations.filter(i => i.installation_type === "Custom");
 
@@ -177,7 +172,7 @@ export const ClaudeVersionSelector: React.FC<ClaudeVersionSelectorProps> = ({
           Claude Code Installation
         </CardTitle>
         <CardDescription>
-          Choose your preferred Claude Code installation. Bundled version is recommended for best compatibility.
+          Choose your preferred Claude Code installation.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -199,28 +194,6 @@ export const ClaudeVersionSelector: React.FC<ClaudeVersionSelectorProps> = ({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {bundledInstallations.length > 0 && (
-                <>
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Bundled</div>
-                  {bundledInstallations.map((installation) => (
-                    <SelectItem key={installation.path} value={installation.path}>
-                      <div className="flex items-center gap-2 w-full">
-                        {getInstallationIcon(installation)}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium">Claude Code (Bundled)</div>
-                          <div className="text-xs text-muted-foreground">
-                            {installation.version || "Version unknown"} • {installation.source}
-                          </div>
-                        </div>
-                        <Badge variant="secondary" className={cn("text-xs", getInstallationTypeColor(installation))}>
-                          Recommended
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </>
-              )}
-              
               {systemInstallations.length > 0 && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">System Installations</div>

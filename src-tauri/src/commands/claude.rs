@@ -266,30 +266,6 @@ fn create_command_with_env(program: &str) -> Command {
     tokio_cmd
 }
 
-/// Determines whether to use sidecar or system binary execution
-fn should_use_sidecar(claude_path: &str) -> bool {
-    claude_path == "claude-code"
-}
-
-/// Creates a sidecar command with the given arguments
-fn create_sidecar_command(
-    app: &AppHandle,
-    args: Vec<String>,
-    project_path: &str,
-) -> Result<tauri_plugin_shell::process::Command, String> {
-    let mut sidecar_cmd = app
-        .shell()
-        .sidecar("claude-code")
-        .map_err(|e| format!("Failed to create sidecar command: {}", e))?;
-    
-    // Add all arguments
-    sidecar_cmd = sidecar_cmd.args(args);
-    
-    // Set working directory
-    sidecar_cmd = sidecar_cmd.current_dir(project_path);
-    
-    Ok(sidecar_cmd)
-}
 
 /// Creates a system binary command with the given arguments
 fn create_system_command(
@@ -577,91 +553,6 @@ pub async fn check_claude_version(app: AppHandle) -> Result<ClaudeVersionStatus,
             });
         }
     };
-
-    // If the selected path is the special sidecar identifier, execute it to get version
-    if claude_path == "claude-code" {
-        use tauri_plugin_shell::process::CommandEvent;
-        
-        // Create a temporary directory for the sidecar to run in
-        let temp_dir = std::env::temp_dir();
-        
-        // Create sidecar command with --version flag
-        let sidecar_cmd = match app
-            .shell()
-            .sidecar("claude-code") {
-            Ok(cmd) => cmd.args(["--version"]).current_dir(&temp_dir),
-            Err(e) => {
-                log::error!("Failed to create sidecar command: {}", e);
-                return Ok(ClaudeVersionStatus {
-                    is_installed: true, // We know it exists, just couldn't create command
-                    version: None,
-                    output: format!("Using bundled Claude Code sidecar (command creation failed: {})", e),
-                });
-            }
-        };
-        
-        // Spawn the sidecar and collect output
-        match sidecar_cmd.spawn() {
-            Ok((mut rx, _child)) => {
-                let mut stdout_output = String::new();
-                let mut stderr_output = String::new();
-                let mut exit_success = false;
-                
-                // Collect output from the sidecar
-                while let Some(event) = rx.recv().await {
-                    match event {
-                        CommandEvent::Stdout(data) => {
-                            let line = String::from_utf8_lossy(&data);
-                            stdout_output.push_str(&line);
-                        }
-                        CommandEvent::Stderr(data) => {
-                            let line = String::from_utf8_lossy(&data);
-                            stderr_output.push_str(&line);
-                        }
-                        CommandEvent::Terminated(payload) => {
-                            exit_success = payload.code.unwrap_or(-1) == 0;
-                            break;
-                        }
-                        _ => {}
-                    }
-                }
-                
-                // Use regex to directly extract version pattern (e.g., "1.0.41")
-                let version_regex = regex::Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok();
-                
-                let version = if let Some(regex) = version_regex {
-                    regex.captures(&stdout_output)
-                        .and_then(|captures| captures.get(1))
-                        .map(|m| m.as_str().to_string())
-                } else {
-                    None
-                };
-                
-                let full_output = if stderr_output.is_empty() {
-                    stdout_output.clone()
-                } else {
-                    format!("{}\n{}", stdout_output, stderr_output)
-                };
-
-                // Check if the output matches the expected format
-                let is_valid = stdout_output.contains("(Claude Code)") || stdout_output.contains("Claude Code") || version.is_some();
-
-                return Ok(ClaudeVersionStatus {
-                    is_installed: is_valid && exit_success,
-                    version,
-                    output: full_output.trim().to_string(),
-                });
-            }
-            Err(e) => {
-                log::error!("Failed to execute sidecar: {}", e);
-                return Ok(ClaudeVersionStatus {
-                    is_installed: true, // We know it exists, just couldn't get version
-                    version: None,
-                    output: format!("Using bundled Claude Code sidecar (version check failed: {})", e),
-                });
-            }
-        }
-    }
 
     use log::debug;debug!("Claude path: {}", claude_path);
 
@@ -951,12 +842,8 @@ pub async fn execute_claude_code(
         "--dangerously-skip-permissions".to_string(),
     ];
 
-    if should_use_sidecar(&claude_path) {
-        spawn_claude_sidecar(app, args, prompt, model, project_path).await
-    } else {
-        let cmd = create_system_command(&claude_path, args, &project_path);
-        spawn_claude_process(app, cmd, prompt, model, project_path).await
-    }
+    let cmd = create_system_command(&claude_path, args, &project_path);
+    spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 
 /// Continue an existing Claude Code conversation with streaming output
@@ -987,12 +874,8 @@ pub async fn continue_claude_code(
         "--dangerously-skip-permissions".to_string(),
     ];
 
-    if should_use_sidecar(&claude_path) {
-        spawn_claude_sidecar(app, args, prompt, model, project_path).await
-    } else {
-        let cmd = create_system_command(&claude_path, args, &project_path);
-        spawn_claude_process(app, cmd, prompt, model, project_path).await
-    }
+    let cmd = create_system_command(&claude_path, args, &project_path);
+    spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 
 /// Resume an existing Claude Code session by ID with streaming output
@@ -1026,12 +909,8 @@ pub async fn resume_claude_code(
         "--dangerously-skip-permissions".to_string(),
     ];
 
-    if should_use_sidecar(&claude_path) {
-        spawn_claude_sidecar(app, args, prompt, model, project_path).await
-    } else {
-        let cmd = create_system_command(&claude_path, args, &project_path);
-        spawn_claude_process(app, cmd, prompt, model, project_path).await
-    }
+    let cmd = create_system_command(&claude_path, args, &project_path);
+    spawn_claude_process(app, cmd, prompt, model, project_path).await
 }
 
 /// Cancel the currently running Claude Code execution
@@ -1348,144 +1227,6 @@ async fn spawn_claude_process(app: AppHandle, mut cmd: Command, prompt: String, 
     Ok(())
 }
 
-/// Helper function to spawn Claude sidecar process and handle streaming
-async fn spawn_claude_sidecar(
-    app: AppHandle,
-    args: Vec<String>,
-    prompt: String,
-    model: String,
-    project_path: String,
-) -> Result<(), String> {
-    use std::sync::Mutex;
-
-    // Create the sidecar command
-    let sidecar_cmd = create_sidecar_command(&app, args, &project_path)?;
-    
-    // Spawn the sidecar process
-    let (mut rx, child) = sidecar_cmd
-        .spawn()
-        .map_err(|e| format!("Failed to spawn Claude sidecar: {}", e))?;
-
-    // Get the child PID for logging
-    let pid = child.pid();
-    log::info!("Spawned Claude sidecar process with PID: {:?}", pid);
-
-    // We'll extract the session ID from Claude's init message
-    let session_id_holder: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-    let run_id_holder: Arc<Mutex<Option<i64>>> = Arc::new(Mutex::new(None));
-
-    // Register with ProcessRegistry
-    let registry = app.state::<crate::process::ProcessRegistryState>();
-    let registry_clone = registry.0.clone();
-    let project_path_clone = project_path.clone();
-    let prompt_clone = prompt.clone();
-    let model_clone = model.clone();
-
-    // Spawn task to read events from sidecar
-    let app_handle = app.clone();
-    let session_id_holder_clone = session_id_holder.clone();
-    let run_id_holder_clone = run_id_holder.clone();
-    
-    tauri::async_runtime::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            match event {
-                CommandEvent::Stdout(line_bytes) => {
-                    let line = String::from_utf8_lossy(&line_bytes);
-                    let line_str = line.trim_end_matches('\n').trim_end_matches('\r');
-                    
-                    if !line_str.is_empty() {
-                        log::debug!("Claude sidecar stdout: {}", line_str);
-                        
-                        // Parse the line to check for init message with session ID
-                        if let Ok(msg) = serde_json::from_str::<serde_json::Value>(line_str) {
-                            if msg["type"] == "system" && msg["subtype"] == "init" {
-                                if let Some(claude_session_id) = msg["session_id"].as_str() {
-                                    let mut session_id_guard = session_id_holder_clone.lock().unwrap();
-                                    if session_id_guard.is_none() {
-                                        *session_id_guard = Some(claude_session_id.to_string());
-                                        log::info!("Extracted Claude session ID: {}", claude_session_id);
-                                        
-                                        // Register with ProcessRegistry using Claude's session ID
-                                        match registry_clone.register_claude_session(
-                                            claude_session_id.to_string(),
-                                            pid,
-                                            project_path_clone.clone(),
-                                            prompt_clone.clone(),
-                                            model_clone.clone(),
-                                        ) {
-                                            Ok(run_id) => {
-                                                log::info!("Registered Claude sidecar session with run_id: {}", run_id);
-                                                let mut run_id_guard = run_id_holder_clone.lock().unwrap();
-                                                *run_id_guard = Some(run_id);
-                                            }
-                                            Err(e) => {
-                                                log::error!("Failed to register Claude sidecar session: {}", e);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Store live output in registry if we have a run_id
-                        if let Some(run_id) = *run_id_holder_clone.lock().unwrap() {
-                            let _ = registry_clone.append_live_output(run_id, line_str);
-                        }
-                        
-                        // Emit the line to the frontend with session isolation if we have session ID
-                        if let Some(ref session_id) = *session_id_holder_clone.lock().unwrap() {
-                            let _ = app_handle.emit(&format!("claude-output:{}", session_id), line_str);
-                        }
-                        // Also emit to the generic event for backward compatibility
-                        let _ = app_handle.emit("claude-output", line_str);
-                    }
-                }
-                CommandEvent::Stderr(line_bytes) => {
-                    let line = String::from_utf8_lossy(&line_bytes);
-                    let line_str = line.trim_end_matches('\n').trim_end_matches('\r');
-                    
-                    if !line_str.is_empty() {
-                        log::error!("Claude sidecar stderr: {}", line_str);
-                        
-                        // Emit error lines to the frontend with session isolation if we have session ID
-                        if let Some(ref session_id) = *session_id_holder_clone.lock().unwrap() {
-                            let _ = app_handle.emit(&format!("claude-error:{}", session_id), line_str);
-                        }
-                        // Also emit to the generic event for backward compatibility
-                        let _ = app_handle.emit("claude-error", line_str);
-                    }
-                }
-                CommandEvent::Terminated(payload) => {
-                    log::info!("Claude sidecar process terminated with payload: {:?}", payload);
-                    
-                    // Add a small delay to ensure all messages are processed
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    
-                    let success = payload.code.unwrap_or(-1) == 0;
-                    
-                    if let Some(ref session_id) = *session_id_holder_clone.lock().unwrap() {
-                        let _ = app_handle.emit(&format!("claude-complete:{}", session_id), success);
-                    }
-                    // Also emit to the generic event for backward compatibility
-                    let _ = app_handle.emit("claude-complete", success);
-                    
-                    // Unregister from ProcessRegistry if we have a run_id
-                    if let Some(run_id) = *run_id_holder_clone.lock().unwrap() {
-                        let _ = registry_clone.unregister_process(run_id);
-                    }
-                    
-                    break;
-                }
-                _ => {
-                    // Handle other event types if needed
-                    log::debug!("Claude sidecar event: {:?}", event);
-                }
-            }
-        }
-    });
-
-    Ok(())
-}
 
 /// Lists files and directories in a given path
 #[tauri::command]

@@ -3,7 +3,7 @@ use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 /// Shared module for detecting Claude Code binary installations
-/// Supports NVM installations, aliased paths, version-based selection, and bundled sidecars
+/// Supports NVM installations, aliased paths, and version-based selection
 use std::path::PathBuf;
 use std::process::Command;
 use tauri::Manager;
@@ -11,8 +11,6 @@ use tauri::Manager;
 /// Type of Claude installation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum InstallationType {
-    /// Bundled sidecar binary (preferred)
-    Bundled,
     /// System-installed binary
     System,
     /// Custom path specified by user
@@ -22,11 +20,11 @@ pub enum InstallationType {
 /// Represents a Claude installation with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeInstallation {
-    /// Full path to the Claude binary (or "claude-code" for sidecar)
+    /// Full path to the Claude binary
     pub path: String,
     /// Version string if available
     pub version: Option<String>,
-    /// Source of discovery (e.g., "nvm", "system", "homebrew", "which", "bundled")
+    /// Source of discovery (e.g., "nvm", "system", "homebrew", "which")
     pub source: String,
     /// Type of installation
     pub installation_type: InstallationType,
@@ -50,12 +48,7 @@ pub fn find_claude_binary(app_handle: &tauri::AppHandle) -> Result<String, Strin
                 ) {
                     info!("Found stored claude path in database: {}", stored_path);
                     
-                    // If it's a sidecar reference, return it directly
-                    if stored_path == "claude-code" {
-                        return Ok(stored_path);
-                    }
-                    
-                    // Otherwise check if the path still exists
+                    // Check if the path still exists
                     let path_buf = PathBuf::from(&stored_path);
                     if path_buf.exists() && path_buf.is_file() {
                         return Ok(stored_path);
@@ -69,23 +62,11 @@ pub fn find_claude_binary(app_handle: &tauri::AppHandle) -> Result<String, Strin
                     "SELECT value FROM app_settings WHERE key = 'claude_installation_preference'",
                     [],
                     |row| row.get::<_, String>(0),
-                ).unwrap_or_else(|_| "bundled".to_string());
+                ).unwrap_or_else(|_| "system".to_string());
                 
                 info!("User preference for Claude installation: {}", preference);
-                
-                // If user prefers bundled and it's available, use it
-                if preference == "bundled" && is_sidecar_available(app_handle) {
-                    info!("Using bundled Claude Code sidecar per user preference");
-                    return Ok("claude-code".to_string());
-                }
             }
         }
-    }
-
-    // Check for bundled sidecar (if no preference or bundled preferred)
-    if is_sidecar_available(app_handle) {
-        info!("Found bundled Claude Code sidecar");
-        return Ok("claude-code".to_string());
     }
 
     // Discover all available system installations
@@ -113,67 +94,29 @@ pub fn find_claude_binary(app_handle: &tauri::AppHandle) -> Result<String, Strin
     }
 }
 
-/// Check if the bundled sidecar is available
-fn is_sidecar_available(app_handle: &tauri::AppHandle) -> bool {
-    // Try to create a sidecar command to test availability
-    use tauri_plugin_shell::ShellExt;
-    
-    match app_handle.shell().sidecar("claude-code") {
-        Ok(_) => {
-            debug!("Bundled Claude Code sidecar is available");
-            true
-        }
-        Err(e) => {
-            debug!("Bundled Claude Code sidecar not available: {}", e);
-            false
-        }
-    }
-}
-
 /// Discovers all available Claude installations and returns them for selection
 /// This allows UI to show a version selector
 pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
     info!("Discovering all Claude installations...");
 
-    let mut installations = Vec::new();
+    let mut installations = discover_system_installations();
 
-    // Always add bundled sidecar as first option if available
-    // We can't easily check version for sidecar without spawning it, so we'll mark it as bundled
-    installations.push(ClaudeInstallation {
-        path: "claude-code".to_string(),
-        version: None, // Version will be determined at runtime
-        source: "bundled".to_string(),
-        installation_type: InstallationType::Bundled,
-    });
-
-    // Add system installations
-    installations.extend(discover_system_installations());
-
-    // Sort by installation type (Bundled first), then by version (highest first), then by source preference
+    // Sort by version (highest first), then by source preference
     installations.sort_by(|a, b| {
-        // First sort by installation type (Bundled comes first)
-        match (&a.installation_type, &b.installation_type) {
-            (InstallationType::Bundled, InstallationType::Bundled) => Ordering::Equal,
-            (InstallationType::Bundled, _) => Ordering::Less,
-            (_, InstallationType::Bundled) => Ordering::Greater,
-            _ => {
-                // For non-bundled installations, sort by version then source
-                match (&a.version, &b.version) {
-                    (Some(v1), Some(v2)) => {
-                        // Compare versions in descending order (newest first)
-                        match compare_versions(v2, v1) {
-                            Ordering::Equal => {
-                                // If versions are equal, prefer by source
-                                source_preference(a).cmp(&source_preference(b))
-                            }
-                            other => other,
-                        }
+        match (&a.version, &b.version) {
+            (Some(v1), Some(v2)) => {
+                // Compare versions in descending order (newest first)
+                match compare_versions(v2, v1) {
+                    Ordering::Equal => {
+                        // If versions are equal, prefer by source
+                        source_preference(a).cmp(&source_preference(b))
                     }
-                    (Some(_), None) => Ordering::Less, // Version comes before no version
-                    (None, Some(_)) => Ordering::Greater,
-                    (None, None) => source_preference(a).cmp(&source_preference(b)),
+                    other => other,
                 }
             }
+            (Some(_), None) => Ordering::Less, // Version comes before no version
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => source_preference(a).cmp(&source_preference(b)),
         }
     });
 
@@ -183,7 +126,6 @@ pub fn discover_claude_installations() -> Vec<ClaudeInstallation> {
 /// Returns a preference score for installation sources (lower is better)
 fn source_preference(installation: &ClaudeInstallation) -> u8 {
     match installation.source.as_str() {
-        "bundled" => 0, // Bundled sidecar has highest preference
         "which" => 1,
         "homebrew" => 2,
         "system" => 3,
@@ -200,7 +142,7 @@ fn source_preference(installation: &ClaudeInstallation) -> u8 {
     }
 }
 
-/// Discovers all Claude system installations on the system (excludes bundled sidecar)
+/// Discovers all Claude installations on the system
 fn discover_system_installations() -> Vec<ClaudeInstallation> {
     let mut installations = Vec::new();
 

@@ -100,7 +100,7 @@ jobs:
       - name: Build frontend
         run: bun run build
 
-      # Build Tauri application (no bundle for faster CI)
+      # Build Tauri application
       - name: Build Tauri application
         run: bun run tauri build --no-bundle -d
         env:
