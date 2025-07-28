@@ -124,7 +124,7 @@ export const getClaudeSyntaxTheme = (theme: ThemeMode): any => {
       overflow: 'auto',
     },
     ':not(pre) > code[class*="language-"]': {
-      background: theme === 'light' || theme === 'white' 
+      background: theme === 'light' 
         ? 'rgba(139, 92, 246, 0.1)' 
         : 'rgba(139, 92, 246, 0.1)',
       padding: '0.1em 0.3em',

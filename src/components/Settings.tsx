@@ -170,12 +170,12 @@ export const Settings: React.FC<SettingsProps> = ({
       const updatedSettings: ClaudeSettings = {
         ...settings,
         permissions: {
-          allow: allowRules.map(rule => rule.value).filter(v => v.trim()),
-          deny: denyRules.map(rule => rule.value).filter(v => v.trim()),
+          allow: allowRules.map(rule => rule.value).filter(v => v && String(v).trim()),
+          deny: denyRules.map(rule => rule.value).filter(v => v && String(v).trim()),
         },
         env: envVars.reduce((acc, { key, value }) => {
-          if (key.trim() && value.trim()) {
-            acc[key] = value;
+          if (key && String(key).trim() && value && String(value).trim()) {
+            acc[key] = String(value);
           }
           return acc;
         }, {} as Record<string, string>),

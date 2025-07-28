@@ -632,9 +632,6 @@ export const BashWidget: React.FC<{
   description?: string;
   result?: any;
 }> = ({ command, description, result }) => {
-  const { theme } = useTheme();
-  const syntaxTheme = getClaudeSyntaxTheme(theme);
-  
   // Extract result content if available
   let resultContent = '';
   let isError = false;
