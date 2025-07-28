@@ -43,6 +43,95 @@
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
+/* Theme Variations */
+/* Default is dark theme - already defined above */
+
+/* Light Theme */
+.theme-light {
+  --color-background: oklch(0.98 0.01 240);
+  --color-foreground: oklch(0.12 0.01 240);
+  --color-card: oklch(0.96 0.01 240);
+  --color-card-foreground: oklch(0.12 0.01 240);
+  --color-popover: oklch(0.98 0.01 240);
+  --color-popover-foreground: oklch(0.12 0.01 240);
+  --color-primary: oklch(0.12 0.01 240);
+  --color-primary-foreground: oklch(0.98 0.01 240);
+  --color-secondary: oklch(0.94 0.01 240);
+  --color-secondary-foreground: oklch(0.12 0.01 240);
+  --color-muted: oklch(0.94 0.01 240);
+  --color-muted-foreground: oklch(0.45 0.01 240);
+  --color-accent: oklch(0.94 0.01 240);
+  --color-accent-foreground: oklch(0.12 0.01 240);
+  --color-destructive: oklch(0.6 0.2 25);
+  --color-destructive-foreground: oklch(0.98 0.01 240);
+  --color-border: oklch(0.90 0.01 240);
+  --color-input: oklch(0.90 0.01 240);
+  --color-ring: oklch(0.52 0.015 240);
+  
+  /* Additional colors for status messages */
+  --color-green-500: oklch(0.62 0.20 142);
+  --color-green-600: oklch(0.54 0.22 142);
+}
+
+/* Gray Theme */
+.theme-gray {
+  --color-background: oklch(0.22 0.01 240);
+  --color-foreground: oklch(0.98 0.01 240);
+  --color-card: oklch(0.26 0.01 240);
+  --color-card-foreground: oklch(0.98 0.01 240);
+  --color-popover: oklch(0.22 0.01 240);
+  --color-popover-foreground: oklch(0.98 0.01 240);
+  --color-primary: oklch(0.98 0.01 240);
+  --color-primary-foreground: oklch(0.22 0.01 240);
+  --color-secondary: oklch(0.30 0.01 240);
+  --color-secondary-foreground: oklch(0.98 0.01 240);
+  --color-muted: oklch(0.30 0.01 240);
+  --color-muted-foreground: oklch(0.70 0.01 240);
+  --color-accent: oklch(0.30 0.01 240);
+  --color-accent-foreground: oklch(0.98 0.01 240);
+  --color-destructive: oklch(0.6 0.2 25);
+  --color-destructive-foreground: oklch(0.98 0.01 240);
+  --color-border: oklch(0.30 0.01 240);
+  --color-input: oklch(0.30 0.01 240);
+  --color-ring: oklch(0.60 0.015 240);
+  
+  /* Additional colors for status messages */
+  --color-green-500: oklch(0.72 0.20 142);
+  --color-green-600: oklch(0.64 0.22 142);
+}
+
+/* White Theme (High Contrast Light) */
+.theme-white {
+  --color-background: oklch(1.0 0 240);
+  --color-foreground: oklch(0.0 0 240);
+  --color-card: oklch(0.98 0.01 240);
+  --color-card-foreground: oklch(0.0 0 240);
+  --color-popover: oklch(1.0 0 240);
+  --color-popover-foreground: oklch(0.0 0 240);
+  --color-primary: oklch(0.0 0 240);
+  --color-primary-foreground: oklch(1.0 0 240);
+  --color-secondary: oklch(0.96 0.01 240);
+  --color-secondary-foreground: oklch(0.0 0 240);
+  --color-muted: oklch(0.96 0.01 240);
+  --color-muted-foreground: oklch(0.35 0.01 240);
+  --color-accent: oklch(0.96 0.01 240);
+  --color-accent-foreground: oklch(0.0 0 240);
+  --color-destructive: oklch(0.55 0.25 25);
+  --color-destructive-foreground: oklch(1.0 0 240);
+  --color-border: oklch(0.85 0.01 240);
+  --color-input: oklch(0.85 0.01 240);
+  --color-ring: oklch(0.40 0.015 240);
+  
+  /* Additional colors for status messages */
+  --color-green-500: oklch(0.55 0.25 142);
+  --color-green-600: oklch(0.47 0.27 142);
+}
+
+/* Custom Theme - CSS variables will be set dynamically by ThemeContext */
+.theme-custom {
+  /* Custom theme variables are applied dynamically via JavaScript */
+}
+
 /* Reset and base styles */
 * {
   border-color: var(--color-border);
@@ -157,8 +246,10 @@ button:focus-visible,
   }
 }
 
-/* Markdown Editor Dark Mode Styles */
-[data-color-mode="dark"] {
+/* Markdown Editor Theme-aware Styles */
+[data-color-mode="dark"],
+.theme-dark [data-color-mode="dark"],
+.theme-gray [data-color-mode="dark"] {
   --color-border-default: rgb(48, 54, 61);
   --color-canvas-default: rgb(13, 17, 23);
   --color-canvas-subtle: rgb(22, 27, 34);
@@ -167,6 +258,19 @@ button:focus-visible,
   --color-fg-subtle: rgb(110, 118, 129);
   --color-accent-fg: rgb(88, 166, 255);
   --color-danger-fg: rgb(248, 81, 73);
+}
+
+[data-color-mode="light"],
+.theme-light [data-color-mode="light"],
+.theme-white [data-color-mode="light"] {
+  --color-border-default: rgb(216, 222, 228);
+  --color-canvas-default: rgb(255, 255, 255);
+  --color-canvas-subtle: rgb(246, 248, 250);
+  --color-fg-default: rgb(31, 35, 40);
+  --color-fg-muted: rgb(101, 109, 118);
+  --color-fg-subtle: rgb(149, 157, 165);
+  --color-accent-fg: rgb(9, 105, 218);
+  --color-danger-fg: rgb(207, 34, 46);
 }
 
 .w-md-editor {
