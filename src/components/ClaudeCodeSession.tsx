@@ -33,6 +33,7 @@ import { SplitPane } from "@/components/ui/split-pane";
 import { WebviewPreview } from "./WebviewPreview";
 import type { ClaudeStreamMessage } from "./AgentExecution";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useTrackEvent, useComponentMetrics } from "@/hooks";
 
 interface ClaudeCodeSessionProps {
   /**
@@ -114,6 +115,10 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
   const isMountedRef = useRef(true);
   const isListeningRef = useRef(false);
 
+  // Analytics tracking
+  const trackEvent = useTrackEvent();
+  useComponentMetrics('ClaudeCodeSession');
+  
   // Keep ref in sync with state
   useEffect(() => {
     queuedPromptsRef.current = queuedPrompts;
@@ -595,10 +600,14 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
         // Execute the appropriate command
         if (effectiveSession && !isFirstPrompt) {
           console.log('[ClaudeCodeSession] Resuming session:', effectiveSession.id);
+          trackEvent.sessionResumed(effectiveSession.id);
+          trackEvent.modelSelected(model);
           await api.resumeClaudeCode(projectPath, effectiveSession.id, prompt, model);
         } else {
           console.log('[ClaudeCodeSession] Starting new session');
           setIsFirstPrompt(false);
+          trackEvent.sessionCreated(model, 'prompt_input');
+          trackEvent.modelSelected(model);
           await api.executeClaudeCode(projectPath, prompt, model);
         }
       }
@@ -820,6 +829,11 @@ export const ClaudeCodeSession: React.FC<ClaudeCodeSessionProps> = ({
       console.log('[ClaudeCodeSession] Component unmounting, cleaning up listeners');
       isMountedRef.current = false;
       isListeningRef.current = false;
+      
+      // Track session completion
+      if (effectiveSession) {
+        trackEvent.sessionCompleted();
+      }
       
       // Clean up listeners
       unlistenRefs.current.forEach(unlisten => unlisten());

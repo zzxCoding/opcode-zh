@@ -4,6 +4,7 @@ import { X, Plus, MessageSquare, Bot, AlertCircle, Loader2, Folder, BarChart, Se
 import { useTabState } from '@/hooks/useTabState';
 import { Tab } from '@/contexts/TabContext';
 import { cn } from '@/lib/utils';
+import { useTrackEvent } from '@/hooks';
 
 interface TabItemProps {
   tab: Tab;
@@ -133,6 +134,9 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftScroll, setShowLeftScroll] = useState(false);
   const [showRightScroll, setShowRightScroll] = useState(false);
+  
+  // Analytics tracking
+  const trackEvent = useTrackEvent();
 
   // Listen for tab switch events
   useEffect(() => {
@@ -151,10 +155,15 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   useEffect(() => {
     const handleCreateTab = () => {
       createChatTab();
+      trackEvent.tabCreated('chat');
     };
 
     const handleCloseTab = async () => {
       if (activeTabId) {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (tab) {
+          trackEvent.tabClosed(tab.type);
+        }
         await closeTab(activeTabId);
       }
     };
@@ -227,12 +236,17 @@ export const TabManager: React.FC<TabManagerProps> = ({ className }) => {
   };
 
   const handleCloseTab = async (id: string) => {
+    const tab = tabs.find(t => t.id === id);
+    if (tab) {
+      trackEvent.tabClosed(tab.type);
+    }
     await closeTab(id);
   };
 
   const handleNewTab = () => {
     if (canAddTab()) {
       createProjectsTab();
+      trackEvent.tabCreated('projects');
     }
   };
 
