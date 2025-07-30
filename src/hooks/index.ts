@@ -4,3 +4,11 @@ export { useDebounce, useDebouncedCallback } from './useDebounce';
 export { useApiCall } from './useApiCall';
 export { usePagination } from './usePagination';
 export { useTheme } from './useTheme';
+export { 
+  useAnalytics, 
+  useTrackEvent, 
+  usePageView, 
+  useAppLifecycle,
+  useComponentMetrics,
+  useInteractionTracking 
+} from './useAnalytics';
