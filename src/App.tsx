@@ -25,6 +25,8 @@ import { TabManager } from "@/components/TabManager";
 import { TabContent } from "@/components/TabContent";
 import { AgentsModal } from "@/components/AgentsModal";
 import { useTabState } from "@/hooks/useTabState";
+import { AnalyticsConsentBanner } from "@/components/AnalyticsConsent";
+import { useAppLifecycle } from "@/hooks";
 
 type View = 
   | "welcome" 
@@ -60,6 +62,9 @@ function AppContent() {
   const [projectForSettings, setProjectForSettings] = useState<Project | null>(null);
   const [previousView] = useState<View>("welcome");
   const [showAgentsModal, setShowAgentsModal] = useState(false);
+  
+  // Initialize analytics lifecycle tracking
+  useAppLifecycle();
 
   // Load projects on mount when in projects view
   useEffect(() => {
@@ -463,6 +468,9 @@ function AppContent() {
         onInfoClick={() => setShowNFO(true)}
         onAgentsClick={() => setShowAgentsModal(true)}
       />
+      
+      {/* Analytics Consent Banner */}
+      <AnalyticsConsentBanner />
       
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
