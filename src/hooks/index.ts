@@ -10,5 +10,17 @@ export {
   usePageView, 
   useAppLifecycle,
   useComponentMetrics,
-  useInteractionTracking 
+  useInteractionTracking,
+  useScreenTracking,
+  useFeatureExperiment,
+  usePathTracking,
+  useFeatureAdoptionTracking,
+  useWorkflowTracking,
+  useAIInteractionTracking,
+  useNetworkPerformanceTracking
 } from './useAnalytics';
+export { 
+  usePerformanceMonitor, 
+  useAsyncPerformanceTracker 
+} from './usePerformanceMonitor';
+export { TAB_SCREEN_NAMES } from './useAnalytics';
