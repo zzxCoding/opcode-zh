@@ -2,13 +2,17 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { analytics } from "./lib/analytics";
+import { AnalyticsErrorBoundary } from "./components/AnalyticsErrorBoundary";
+import { analytics, resourceMonitor } from "./lib/analytics";
 import { PostHogProvider } from "posthog-js/react";
 import "./assets/shimmer.css";
 import "./styles.css";
 
 // Initialize analytics before rendering
 analytics.initialize();
+
+// Start resource monitoring (check every 2 minutes)
+resourceMonitor.startMonitoring(120000);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -22,7 +26,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       }}
     >
       <ErrorBoundary>
-        <App />
+        <AnalyticsErrorBoundary>
+          <App />
+        </AnalyticsErrorBoundary>
       </ErrorBoundary>
     </PostHogProvider>
   </React.StrictMode>,
