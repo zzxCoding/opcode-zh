@@ -47,5 +47,43 @@
     "shell": {
       "open": true
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb",
+      "rpm",
+      "appimage",
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns"
+    ],
+    "resources": [],
+    "externalBin": [],
+    "copyright": "© 2025 Asterisk. All rights reserved.",
+    "category": "DeveloperTool",
+    "shortDescription": "GUI app and Toolkit for Claude Code",
+    "longDescription": "Claudia is a comprehensive GUI application and toolkit for working with Claude Code, providing an intuitive interface for AI-assisted development.",
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      },
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": "entitlements.plist"
+    }
   }
 }
