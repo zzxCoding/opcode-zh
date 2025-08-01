@@ -87,6 +87,8 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
       
       - name: Build native
+        env:
+          CI: true
         run: bun run tauri build
       
       - name: Upload architecture-specific artifacts
@@ -203,6 +205,9 @@ jobs:
             "$AARCH64_APP/Contents/MacOS/claudia" \
             "$X86_64_APP/Contents/MacOS/claudia"
           
+          # Ensure executable permissions are set
+          chmod +x dmg_temp/Claudia.app/Contents/MacOS/claudia
+          
           echo "✅ Universal binary created"
           lipo -info dmg_temp/Claudia.app/Contents/MacOS/claudia
       
@@ -262,8 +267,9 @@ jobs:
           mkdir -p dist/macos-universal
           cp Claudia.dmg dist/macos-universal/
           
-          # Also save the app bundle
-          cd dmg_temp && zip -r ../dist/macos-universal/Claudia.app.zip Claudia.app && cd ..
+          # Also save the app bundle using ditto to preserve permissions and signatures
+          ditto -c -k --sequesterRsrc --keepParent \
+            dmg_temp/Claudia.app dist/macos-universal/Claudia.app.zip
           
           # Generate checksum
           shasum -a 256 dist/macos-universal/* > dist/macos-universal/checksums.txt
