@@ -1,9 +1,10 @@
 name: Build Linux
 
 on:
+  workflow_call:
   workflow_dispatch:
   push:
-    branches: [main, test-linux-workflow]
+    branches: [main]
 
 jobs:
   build:

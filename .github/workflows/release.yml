@@ -97,7 +97,21 @@ jobs:
           generate_release_notes: true
           files: release-assets/*
           body: |
-            ## Claudia ${{ steps.version.outputs.version }}
+            <div align="center">
+              <img src="https://raw.githubusercontent.com/${{ github.repository }}/${{ steps.version.outputs.version }}/src-tauri/icons/icon.png" alt="Claudia Logo" width="128" height="128">
+              
+              # Claudia ${{ steps.version.outputs.version }}
+              
+              🎉 **First Release!** 🎉
+            
+            ### 🚀 What's New in This First Release
+            
+            - **AI-Powered Coding**: Seamless integration with Claude for intelligent code assistance
+            - **Cross-Platform Support**: Available for macOS and Linux
+            - **Modern UI**: Clean, intuitive interface built with React and Tauri
+            - **MCP Support**: Model Context Protocol integration for enhanced capabilities
+            - **Session Management**: Save and restore your coding sessions
+            - **And much more!**
             
             ### Downloads
             
@@ -126,6 +140,3 @@ jobs:
             
             All files include `.sha256` signature files for verification.
             
-            ### What's Changed
-            
-            See below for a full list of changes in this release.

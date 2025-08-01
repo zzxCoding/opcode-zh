@@ -1,6 +1,22 @@
 name: Build macOS
 
 on:
+  workflow_call:
+    secrets:
+      APPLE_CERTIFICATE:
+        required: true
+      APPLE_CERTIFICATE_PASSWORD:
+        required: true
+      KEYCHAIN_PASSWORD:
+        required: true
+      APPLE_SIGNING_IDENTITY:
+        required: true
+      APPLE_ID:
+        required: true
+      APPLE_TEAM_ID:
+        required: true
+      APPLE_PASSWORD:
+        required: true
   workflow_dispatch:
     inputs:
       skip_build:
@@ -13,7 +29,7 @@ on:
         required: false
         type: string
   push:
-    branches: [main, test-linux-workflow]
+    branches: [main]
 
 jobs:
   build:
