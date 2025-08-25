@@ -83,7 +83,7 @@ class AnalyticsService {
             anonymous: true,
             consent_date: settings.consentDate,
             app_type: 'desktop',
-            app_name: 'claudia',
+            app_name: 'gooey',
           });
           
           // Set initial screen
@@ -150,7 +150,7 @@ class AnalyticsService {
     const enhancedProperties = {
       ...sanitizedProperties,
       screen_name: this.currentScreen,
-      app_context: 'claudia_desktop',
+      app_context: 'gooey_desktop',
     };
     
     // Create event
@@ -234,7 +234,7 @@ class AnalyticsService {
           ...event.properties,
           $session_id: event.sessionId,
           timestamp: event.timestamp,
-          $current_url: `claudia://${event.properties?.screen_name || 'unknown'}`,
+          $current_url: `gooey://${event.properties?.screen_name || 'unknown'}`,
         });
       }
     });

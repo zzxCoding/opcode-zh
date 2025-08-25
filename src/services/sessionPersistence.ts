@@ -5,8 +5,8 @@
 
 import { api, type Session } from '@/lib/api';
 
-const STORAGE_KEY_PREFIX = 'claudia_session_';
-const SESSION_INDEX_KEY = 'claudia_session_index';
+const STORAGE_KEY_PREFIX = 'gooey_session_';
+const SESSION_INDEX_KEY = 'gooey_session_index';
 
 export interface SessionRestoreData {
   sessionId: string;

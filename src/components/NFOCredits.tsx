@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import asteriskLogo from "@/assets/nfo/asterisk-logo.png";
-import keygennMusic from "@/assets/nfo/claudia-nfo.ogg";
+import keygennMusic from "@/assets/nfo/gooey-nfo.ogg";
 
 interface NFOCreditsProps {
   /**
@@ -84,7 +84,7 @@ export const NFOCredits: React.FC<NFOCreditsProps> = ({ onClose }) => {
   
   // Credits content
   const creditsContent = [
-    { type: "header", text: "CLAUDIA v0.1.0" },
+    { type: "header", text: "GOOEY v0.1.0" },
     { type: "subheader", text: "[ A STRATEGIC PROJECT BY ASTERISK ]" },
     { type: "spacer" },
     { type: "section", title: "━━━ CREDITS ━━━" },
@@ -147,7 +147,7 @@ export const NFOCredits: React.FC<NFOCreditsProps> = ({ onClose }) => {
             <div className="flex items-center justify-between px-4 py-2 bg-card border-b border-border">
               <div className="flex items-center space-x-2">
                 <div className="text-sm font-bold tracking-wider font-mono text-foreground">
-                  CLAUDIA.NFO
+                  GOOEY.NFO
                 </div>
               </div>
               <div className="flex items-center space-x-2">
@@ -156,7 +156,7 @@ export const NFOCredits: React.FC<NFOCreditsProps> = ({ onClose }) => {
                   size="sm"
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await openUrl("https://github.com/getAsterisk/claudia/issues/new");
+                    await openUrl("https://github.com/getAsterisk/gooey/issues/new");
                   }}
                   className="flex items-center gap-1 h-auto px-2 py-1"
                   title="File a bug"

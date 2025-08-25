@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/92fd93ed-e71b-4b94-b270-50684323dd00" alt="Claudia Logo" width="120" height="120">
+  <img src="https://github.com/user-attachments/assets/92fd93ed-e71b-4b94-b270-50684323dd00" alt="Gooey Logo" width="120" height="120">
 
-  <a href="https://claudiacode.com"><h1>Claudia</h1></a>
+  <h1>Gooey</h1>
   
   <p>
     <strong>A powerful GUI app and Toolkit for Claude Code</strong>
@@ -19,6 +19,11 @@
   </p>
 </div>
 
+<div align="center">
+  <h2>Notice: This project ("Gooey") is not affiliated with Anthropic.</h2>
+  <p>This project is not affiliated with, endorsed by, or sponsored by Anthropic. Claude is a trademark of Anthropic, PBC. This is an independent developer project using Claude.</p>
+</div>
+
 ![457013521-6133a738-d0cb-4d3e-8746-c6768c82672c](https://github.com/user-attachments/assets/a028de9e-d881-44d8-bae5-7326ab3558b9)
 
 https://github.com/user-attachments/assets/bf0bdf9d-ba91-45af-9ac4-7274f57075cf
@@ -28,9 +33,9 @@ https://github.com/user-attachments/assets/bf0bdf9d-ba91-45af-9ac4-7274f57075cf
 
 ## 🌟 Overview
 
-**Claudia** is a powerful desktop application that transforms how you interact with Claude Code. Built with Tauri 2, it provides a beautiful GUI for managing your Claude Code sessions, creating custom agents, tracking usage, and much more.
+**Gooey** is a powerful desktop application that transforms how you interact with Claude Code. Built with Tauri 2, it provides a beautiful GUI for managing your Claude Code sessions, creating custom agents, tracking usage, and much more.
 
-Think of Claudia as your command center for Claude Code - bridging the gap between the command-line tool and a visual experience that makes AI-assisted development more intuitive and productive.
+Think of Gooey as your command center for Claude Code - bridging the gap between the command-line tool and a visual experience that makes AI-assisted development more intuitive and productive.
 
 ## 📋 Table of Contents
 
@@ -102,9 +107,9 @@ Think of Claudia as your command center for Claude Code - bridging the gap betwe
 
 ### Getting Started
 
-1. **Launch Claudia**: Open the application after installation
+1. **Launch Gooey**: Open the application after installation
 2. **Welcome Screen**: Choose between CC Agents or Projects
-3. **First Time Setup**: Claudia will automatically detect your `~/.claude` directory
+3. **First Time Setup**: Gooey will automatically detect your `~/.claude` directory
 
 ### Managing Projects
 
@@ -159,7 +164,7 @@ Menu → MCP Manager → Add Server → Configure
 
 ### Prerequisites
 
-Before building Claudia from source, ensure you have the following installed:
+Before building Gooey from source, ensure you have the following installed:
 
 #### System Requirements
 
@@ -232,8 +237,8 @@ brew install pkg-config
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/getAsterisk/claudia.git
-   cd claudia
+   git clone https://github.com/getAsterisk/gooey.git
+   cd gooey
    ```
 
 2. **Install Frontend Dependencies**
@@ -302,17 +307,17 @@ After building, you can verify the application works:
 ```bash
 # Run the built executable directly
 # Linux/macOS
-./src-tauri/target/release/claudia
+./src-tauri/target/release/gooey
 
 # Windows
-./src-tauri/target/release/claudia.exe
+./src-tauri/target/release/gooey.exe
 ```
 
 ### Build Artifacts
 
 The build process creates several artifacts:
 
-- **Executable**: The main Claudia application
+- **Executable**: The main Gooey application
 - **Installers** (when using `tauri build`):
   - `.deb` package (Linux)
   - `.AppImage` (Linux)
@@ -335,7 +340,7 @@ All artifacts are located in `src-tauri/target/release/`.
 ### Project Structure
 
 ```
-claudia/
+gooey/
 ├── src/                   # React frontend
 │   ├── components/        # UI components
 │   ├── lib/               # API client & utilities
@@ -370,7 +375,7 @@ cd src-tauri && cargo fmt
 
 ## 🔒 Security
 
-Claudia prioritizes your privacy and security:
+Gooey prioritizes your privacy and security:
 
 1. **Process Isolation**: Agents run in separate processes
 2. **Permission Control**: Configure file and network access per agent
@@ -407,13 +412,13 @@ This project is licensed under the AGPL License - see the [LICENSE](LICENSE) fil
     <strong>Made with ❤️ by the <a href="https://asterisk.so/">Asterisk</a></strong>
   </p>
   <p>
-    <a href="https://github.com/getAsterisk/claudia/issues">Report Bug</a>
+    <a href="https://github.com/getAsterisk/gooey/issues">Report Bug</a>
     ·
-    <a href="https://github.com/getAsterisk/claudia/issues">Request Feature</a>
+    <a href="https://github.com/getAsterisk/gooey/issues">Request Feature</a>
   </p>
 </div>
 
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=getAsterisk/claudia&type=Date)](https://www.star-history.com/#getAsterisk/claudia&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=getAsterisk/gooey&type=Date)](https://www.star-history.com/#getAsterisk/gooey&Date)

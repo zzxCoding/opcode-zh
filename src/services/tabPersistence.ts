@@ -5,9 +5,9 @@
 
 import type { Tab } from '@/contexts/TabContext';
 
-const STORAGE_KEY = 'claudia_tabs_v2';
-const ACTIVE_TAB_KEY = 'claudia_active_tab_v2';
-const PERSISTENCE_ENABLED_KEY = 'claudia_tab_persistence_enabled';
+const STORAGE_KEY = 'gooey_tabs_v2';
+const ACTIVE_TAB_KEY = 'gooey_active_tab_v2';
+const PERSISTENCE_ENABLED_KEY = 'gooey_tab_persistence_enabled';
 
 interface SerializedTab {
   id: string;
@@ -184,7 +184,7 @@ export class TabPersistenceService {
    */
   static migrateFromOldFormat(): void {
     try {
-      const oldKey = 'claudia_tabs';
+      const oldKey = 'gooey_tabs';
       const oldData = localStorage.getItem(oldKey);
       
       if (oldData && !localStorage.getItem(STORAGE_KEY)) {

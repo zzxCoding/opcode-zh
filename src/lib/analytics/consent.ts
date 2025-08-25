@@ -1,6 +1,6 @@
 import type { AnalyticsSettings } from './types';
 
-const ANALYTICS_STORAGE_KEY = 'claudia-analytics-settings';
+const ANALYTICS_STORAGE_KEY = 'gooey-analytics-settings';
 
 export class ConsentManager {
   private static instance: ConsentManager;
