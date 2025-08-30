@@ -1,8 +1,8 @@
-# 🤖 Gooey CC Agents
+# 🤖 opcode CC Agents
 
 <div align="center">
   <p>
-    <strong>Pre-built AI agents for Gooey powered by Claude Code</strong>
+    <strong>Pre-built AI agents for opcode powered by Claude Code</strong>
   </p>
   <p>
     <a href="#available-agents">Browse Agents</a> •
@@ -40,7 +40,7 @@ Choose from these icon options when creating agents:
 
 ### Method 1: Import from GitHub (Recommended)
 
-1. In Gooey, navigate to **CC Agents**
+1. In opcode, navigate to **CC Agents**
 2. Click the **Import** dropdown button
 3. Select **From GitHub**
 4. Browse available agents from the official repository
@@ -48,24 +48,24 @@ Choose from these icon options when creating agents:
 
 ### Method 2: Import from Local File
 
-1. Download a `.gooey.json` file from this repository
-2. In Gooey, navigate to **CC Agents**
+1. Download a `.opcode.json` file from this repository
+2. In opcode, navigate to **CC Agents**
 3. Click the **Import** dropdown button
 4. Select **From File**
-5. Choose the downloaded `.gooey.json` file
+5. Choose the downloaded `.opcode.json` file
 
 ## 📤 Exporting Agents
 
 ### Export Your Custom Agents
 
-1. In Gooey, navigate to **CC Agents**
+1. In opcode, navigate to **CC Agents**
 2. Find your agent in the grid
 3. Click the **Export** button
-4. Choose where to save the `.gooey.json` file
+4. Choose where to save the `.opcode.json` file
 
 ### Agent File Format
 
-All agents are stored in `.gooey.json` format with the following structure:
+All agents are stored in `.opcode.json` format with the following structure:
 
 ```json
 {
@@ -113,14 +113,14 @@ The agent import/export system is built on a robust architecture:
 We welcome agent contributions! Here's how to add your agent:
 
 ### 1. Create Your Agent
-Design and test your agent in Gooey with a clear, focused purpose.
+Design and test your agent in opcode with a clear, focused purpose.
 
 ### 2. Export Your Agent
-Export your agent to a `.gooey.json` file with a descriptive name.
+Export your agent to a `.opcode.json` file with a descriptive name.
 
 ### 3. Submit a Pull Request
 1. Fork this repository
-2. Add your `.gooey.json` file to the `cc_agents` directory
+2. Add your `.opcode.json` file to the `cc_agents` directory
 3. Update this README with your agent's details
 4. Submit a PR with a description of what your agent does
 
@@ -133,10 +133,10 @@ Export your agent to a `.gooey.json` file with a descriptive name.
 
 ## 📜 License
 
-These agents are provided under the same license as the Gooey project. See the main LICENSE file for details.
+These agents are provided under the same license as the opcode project. See the main LICENSE file for details.
 
 ---
 
 <div align="center">
-  <strong>Built with ❤️ by the Gooey community</strong>
+  <strong>Built with ❤️ by the opcode community</strong>
 </div> 

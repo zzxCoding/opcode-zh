@@ -70,7 +70,7 @@ export const AnalyticsConsent: React.FC<AnalyticsConsentProps> = ({
               <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
                 <BarChart3 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
-              <DialogTitle className="text-2xl">Help Improve Gooey</DialogTitle>
+              <DialogTitle className="text-2xl">Help Improve opcode</DialogTitle>
             </div>
             <DialogDescription className="text-base mt-2">
               We'd like to collect anonymous usage data to improve your experience.
@@ -198,7 +198,7 @@ export const AnalyticsConsentBanner: React.FC<AnalyticsConsentBannerProps> = ({
             <div className="flex items-start gap-3">
               <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
               <div className="space-y-2 flex-1">
-                <p className="text-sm font-medium">Help improve Gooey</p>
+                <p className="text-sm font-medium">Help improve opcode</p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   We collect anonymous usage data to improve your experience. No personal data is collected.
                 </p>

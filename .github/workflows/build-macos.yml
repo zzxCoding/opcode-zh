@@ -96,7 +96,7 @@ jobs:
         with:
           name: macos-${{ matrix.arch }}
           path: |
-            src-tauri/target/release/bundle/macos/gooey.app
+            src-tauri/target/release/bundle/macos/opcode.app
             src-tauri/target/release/bundle/dmg/*.dmg
           retention-days: 1
   
@@ -183,8 +183,8 @@ jobs:
           fi
           
           # Find the actual app paths
-          AARCH64_APP=$(find artifacts/macos-aarch64 -name "gooey.app" -type d | head -1)
-          X86_64_APP=$(find artifacts/macos-x86_64 -name "gooey.app" -type d | head -1)
+          AARCH64_APP=$(find artifacts/macos-aarch64 -name "opcode.app" -type d | head -1)
+          X86_64_APP=$(find artifacts/macos-x86_64 -name "opcode.app" -type d | head -1)
           
           if [ -z "$AARCH64_APP" ] || [ -z "$X86_64_APP" ]; then
             echo "❌ Could not find app bundles"
@@ -201,15 +201,15 @@ jobs:
           cp -R "$AARCH64_APP" dmg_temp/
           
           # Create universal binary using lipo
-          lipo -create -output dmg_temp/gooey.app/Contents/MacOS/gooey \
-            "$AARCH64_APP/Contents/MacOS/gooey" \
-            "$X86_64_APP/Contents/MacOS/gooey"
+          lipo -create -output dmg_temp/opcode.app/Contents/MacOS/opcode \
+            "$AARCH64_APP/Contents/MacOS/opcode" \
+            "$X86_64_APP/Contents/MacOS/opcode"
           
           # Ensure executable permissions are set
-          chmod +x dmg_temp/gooey.app/Contents/MacOS/gooey
+          chmod +x dmg_temp/opcode.app/Contents/MacOS/opcode
           
           echo "✅ Universal binary created"
-          lipo -info dmg_temp/gooey.app/Contents/MacOS/gooey
+          lipo -info dmg_temp/opcode.app/Contents/MacOS/opcode
       
       - name: Sign app bundle
         env:
@@ -221,13 +221,13 @@ jobs:
             --force \
             --deep \
             --entitlements src-tauri/entitlements.plist \
-            dmg_temp/gooey.app
+            dmg_temp/opcode.app
       
       - name: Create DMG
         run: |
-          hdiutil create -volname "gooey Installer" \
+          hdiutil create -volname "opcode Installer" \
             -srcfolder dmg_temp \
-            -ov -format UDZO gooey.dmg
+            -ov -format UDZO opcode.dmg
       
       - name: Sign DMG
         env:
@@ -235,7 +235,7 @@ jobs:
         run: |
           codesign --sign "$APPLE_SIGNING_IDENTITY" \
             --timestamp \
-            --force gooey.dmg
+            --force opcode.dmg
       
       - name: Notarize DMG
         env:
@@ -250,26 +250,26 @@ jobs:
             --password "$APPLE_PASSWORD"
           
           # Submit for notarization
-          xcrun notarytool submit gooey.dmg \
+          xcrun notarytool submit opcode.dmg \
             --keychain-profile "notarytool-profile" \
             --wait
       
       - name: Staple notarization
-        run: xcrun stapler staple gooey.dmg
+        run: xcrun stapler staple opcode.dmg
       
       - name: Verify DMG
         run: |
-          spctl -a -t open -vvv --context context:primary-signature gooey.dmg
+          spctl -a -t open -vvv --context context:primary-signature opcode.dmg
           echo "✅ DMG verification complete"
       
       - name: Create artifacts directory
         run: |
           mkdir -p dist/macos-universal
-          cp gooey.dmg dist/macos-universal/
+          cp opcode.dmg dist/macos-universal/
           
           # Also save the app bundle using ditto to preserve permissions and signatures
           ditto -c -k --sequesterRsrc --keepParent \
-            dmg_temp/gooey.app dist/macos-universal/gooey.app.zip
+            dmg_temp/opcode.app dist/macos-universal/opcode.app.zip
           
           # Generate checksum
           shasum -a 256 dist/macos-universal/* > dist/macos-universal/checksums.txt
