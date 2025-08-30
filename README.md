@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/92fd93ed-e71b-4b94-b270-50684323dd00" alt="opcode Logo" width="120" height="120">
+  <img src="https://opcode.sh/opcode-logo.png" alt="opcode Logo" width="120" height="120">
 
   <h1>opcode</h1>
   
@@ -19,17 +19,15 @@
   </p>
 </div>
 
-<div align="center">
-  <h2>Notice: This project ("opcode") is not affiliated with Anthropic.</h2>
-  <p>This project is not affiliated with, endorsed by, or sponsored by Anthropic. Claude is a trademark of Anthropic, PBC. This is an independent developer project using Claude.</p>
-</div>
-
 ![457013521-6133a738-d0cb-4d3e-8746-c6768c82672c](https://github.com/user-attachments/assets/a028de9e-d881-44d8-bae5-7326ab3558b9)
 
 https://github.com/user-attachments/assets/bf0bdf9d-ba91-45af-9ac4-7274f57075cf
 
 > [!TIP]
 > **⭐ Star the repo and follow [@getAsterisk](https://x.com/getAsterisk) on X for early access to `asteria-swe-v0`**.
+
+> [!NOTE]
+> This project is not affiliated with, endorsed by, or sponsored by Anthropic. Claude is a trademark of Anthropic, PBC. This is an independent developer project using Claude.
 
 ## 🌟 Overview
 
