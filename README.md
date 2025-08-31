@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://opcode.sh/opcode-logo.png" alt="opcode Logo" width="120" height="120">
+  <img src="src-tauri/icons/icon.png" alt="opcode Logo" width="120" height="120">
 
   <h1>opcode</h1>
   
