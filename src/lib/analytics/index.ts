@@ -32,7 +32,7 @@ class AnalyticsService {
       persistence: 'localStorage',
       autocapture: false, // We'll manually track events
       disable_session_recording: true, // Privacy first
-      opt_out_capturing_by_default: true, // Require explicit opt-in
+      opt_out_capturing_by_default: false, // Capture enabled by default
     };
   }
   

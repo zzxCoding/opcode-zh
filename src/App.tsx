@@ -23,7 +23,6 @@ import { ProjectSettings } from '@/components/ProjectSettings';
 import { TabManager } from "@/components/TabManager";
 import { TabContent } from "@/components/TabContent";
 import { useTabState } from "@/hooks/useTabState";
-import { AnalyticsConsentBanner } from "@/components/AnalyticsConsent";
 import { useAppLifecycle, useTrackEvent } from "@/hooks";
 import { StartupIntro } from "@/components/StartupIntro";
 
@@ -392,8 +391,7 @@ function AppContent() {
         onAgentsClick={() => setShowAgentsModal(true)}
       /> */}
       
-      {/* Analytics Consent Banner */}
-      <AnalyticsConsentBanner />
+      
       
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">

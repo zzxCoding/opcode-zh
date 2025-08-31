@@ -27,7 +27,6 @@ import { StorageTab } from "./StorageTab";
 import { HooksEditor } from "./HooksEditor";
 import { SlashCommandsManager } from "./SlashCommandsManager";
 import { ProxySettings } from "./ProxySettings";
-import { AnalyticsConsent } from "./AnalyticsConsent";
 import { useTheme, useTrackEvent } from "@/hooks";
 import { analytics } from "@/lib/analytics";
 import { TabPersistenceService } from "@/services/tabPersistence";
@@ -91,8 +90,6 @@ export const Settings: React.FC<SettingsProps> = ({
   
   // Analytics state
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
-  const [analyticsConsented, setAnalyticsConsented] = useState(false);
-  const [showAnalyticsConsent, setShowAnalyticsConsent] = useState(false);
   const trackEvent = useTrackEvent();
   
   // Tab persistence state
@@ -121,7 +118,6 @@ export const Settings: React.FC<SettingsProps> = ({
     const settings = analytics.getSettings();
     if (settings) {
       setAnalyticsEnabled(settings.enabled);
-      setAnalyticsConsented(settings.hasConsented);
     }
   };
 
@@ -686,9 +682,7 @@ export const Settings: React.FC<SettingsProps> = ({
                         id="analytics-enabled"
                         checked={analyticsEnabled}
                         onCheckedChange={async (checked) => {
-                          if (checked && !analyticsConsented) {
-                            setShowAnalyticsConsent(true);
-                          } else if (checked) {
+                          if (checked) {
                             await analytics.enable();
                             setAnalyticsEnabled(true);
                             trackEvent.settingsChanged('analytics_enabled', true);
@@ -1081,15 +1075,7 @@ export const Settings: React.FC<SettingsProps> = ({
         )}
       </ToastContainer>
       
-      {/* Analytics Consent Dialog */}
-      <AnalyticsConsent
-        open={showAnalyticsConsent}
-        onOpenChange={setShowAnalyticsConsent}
-        onComplete={async () => {
-          await loadAnalyticsSettings();
-          setShowAnalyticsConsent(false);
-        }}
-      />
+      
     </div>
   );
 }; 
