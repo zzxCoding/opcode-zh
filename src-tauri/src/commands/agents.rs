@@ -2033,7 +2033,7 @@ pub async fn fetch_github_agents() -> Result<Vec<GitHubAgentFile>, String> {
         .await
         .map_err(|e| format!("Failed to parse GitHub response: {}", e))?;
 
-    // Filter only .opcode.json files
+    // Filter only .opcode.json agent files
     let agent_files: Vec<GitHubAgentFile> = api_files
         .into_iter()
         .filter(|f| f.name.ends_with(".opcode.json") && f.file_type == "file")
