@@ -93,7 +93,12 @@
       "exceptionDomain": "",
       "signingIdentity": null,
       "providerShortName": null,
-      "entitlements": "entitlements.plist"
+      "entitlements": "entitlements.plist",
+      "dmg": {
+        "windowSize": { "width": 540, "height": 380 },
+        "appPosition": { "x": 140, "y": 200 },
+        "applicationFolderPosition": { "x": 400, "y": 200 }
+      }
     }
   }
 }
