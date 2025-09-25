@@ -956,7 +956,7 @@ const translations = {
 // Function to switch language
 function switchLanguage(lang) {
   const t = translations[lang];
-  
+
   // Update all elements with translation keys
   Object.keys(t).forEach(key => {
     const element = document.getElementById(key);
@@ -964,7 +964,22 @@ function switchLanguage(lang) {
       element.textContent = t[key];
     }
   });
-  
+
+  // Update button styles to reflect active language
+  const buttons = document.querySelectorAll('button[onclick^="switchLanguage"]');
+  buttons.forEach(button => {
+    const buttonLang = button.getAttribute('onclick').match(/'(\w+)'/)[1];
+    if (buttonLang === lang) {
+      button.style.background = '#007bff';
+      button.style.color = 'white';
+      button.style.borderColor = '#007bff';
+    } else {
+      button.style.background = '#f8f9fa';
+      button.style.color = '#333';
+      button.style.borderColor = '#ddd';
+    }
+  });
+
   // Store language preference
   localStorage.setItem('preferred-language', lang);
 }
@@ -973,11 +988,12 @@ function switchLanguage(lang) {
 document.addEventListener('DOMContentLoaded', function() {
   const savedLang = localStorage.getItem('preferred-language');
   const browserLang = navigator.language.startsWith('zh') ? 'zh' : 'en';
-  const initialLang = savedLang || browserLang;
-  
+  // Default to Chinese for this fork
+  const initialLang = savedLang || 'zh';
+
   // Set initial language
   switchLanguage(initialLang);
-  
+
   // Update button styles to reflect active language
   const buttons = document.querySelectorAll('button[onclick^="switchLanguage"]');
   buttons.forEach(button => {
@@ -986,6 +1002,10 @@ document.addEventListener('DOMContentLoaded', function() {
       button.style.background = '#007bff';
       button.style.color = 'white';
       button.style.borderColor = '#007bff';
+    } else {
+      button.style.background = '#f8f9fa';
+      button.style.color = '#333';
+      button.style.borderColor = '#ddd';
     }
   });
 });
