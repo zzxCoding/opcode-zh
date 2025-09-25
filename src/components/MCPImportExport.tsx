@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Download, Upload, FileText, Loader2, Info, Network, Settings2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
   onImportCompleted,
   onError,
 }) => {
+  const { t } = useTranslation();
   const [importingDesktop, setImportingDesktop] = useState(false);
   const [importingJson, setImportingJson] = useState(false);
   const [importScope, setImportScope] = useState("local");
@@ -62,7 +64,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
       }
     } catch (error: any) {
       console.error("Failed to import from Claude Desktop:", error);
-      onError(error.toString() || "Failed to import from Claude Desktop");
+      onError(error.toString() || t('components.mcp_import_export.failed_to_import_from_desktop'));
     } finally {
       setImportingDesktop(false);
     }
@@ -84,7 +86,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
       try {
         jsonData = JSON.parse(content);
       } catch (e) {
-        onError("Invalid JSON file. Please check the format.");
+        onError(t('components.mcp_import_export.invalid_json'));
         return;
       }
 
@@ -117,7 +119,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
         onImportCompleted(imported, failed);
       } else if (jsonData.type && jsonData.command) {
         // Single server format
-        const name = prompt("Enter a name for this server:");
+        const name = prompt(t('components.mcp_import_export.enter_server_name'));
         if (!name) return;
 
         const result = await api.mcpAddJson(name, content, importScope);
@@ -127,11 +129,11 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
           onError(result.message);
         }
       } else {
-        onError("Unrecognized JSON format. Expected MCP server configuration.");
+        onError(t('components.mcp_import_export.unrecognized_json_format'));
       }
     } catch (error) {
       console.error("Failed to import JSON:", error);
-      onError("Failed to import JSON file");
+      onError(t('components.mcp_import_export.failed_to_import_json'));
     } finally {
       setImportingJson(false);
       // Reset the input
@@ -144,7 +146,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
    */
   const handleExport = () => {
     // TODO: Implement export functionality
-    onError("Export functionality coming soon!");
+    onError(t('components.mcp_import_export.export_coming_soon_message'));
   };
 
   /**
@@ -153,19 +155,19 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
   const handleStartMCPServer = async () => {
     try {
       await api.mcpServe();
-      onError("Claude Code MCP server started. You can now connect to it from other applications.");
+      onError(t('components.mcp_import_export.claude_code_mcp_started'));
     } catch (error) {
       console.error("Failed to start MCP server:", error);
-      onError("Failed to start Claude Code as MCP server");
+      onError(t('components.mcp_import_export.failed_to_start_mcp_server'));
     }
   };
 
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h3 className="text-base font-semibold">Import & Export</h3>
+        <h3 className="text-base font-semibold">{t('components.mcp_import_export.title')}</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Import MCP servers from other sources or export your configuration
+          {t('components.mcp_import_export.description')}
         </p>
       </div>
 
@@ -175,19 +177,19 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
           <div className="space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <Settings2 className="h-4 w-4 text-slate-500" />
-              <Label className="text-sm font-medium">Import Scope</Label>
+              <Label className="text-sm font-medium">{t('components.mcp_import_export.import_scope')}</Label>
             </div>
             <SelectComponent
               value={importScope}
               onValueChange={(value: string) => setImportScope(value)}
               options={[
-                { value: "local", label: "Local (this project only)" },
-                { value: "project", label: "Project (shared via .mcp.json)" },
-                { value: "user", label: "User (all projects)" },
+                { value: "local", label: t('components.mcp_import_export.scope_local') },
+                { value: "project", label: t('components.mcp_import_export.scope_project') },
+                { value: "user", label: t('components.mcp_import_export.scope_user') },
               ]}
             />
             <p className="text-xs text-muted-foreground">
-              Choose where to save imported servers from JSON files
+              {t('components.mcp_import_export.import_scope_help')}
             </p>
           </div>
         </Card>
@@ -200,9 +202,9 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
                 <Download className="h-5 w-5 text-blue-500" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-medium">Import from Claude Desktop</h4>
+                <h4 className="text-sm font-medium">{t('components.mcp_import_export.import_from_desktop')}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Automatically imports all MCP servers from Claude Desktop. Installs to user scope (available across all projects).
+                  {t('components.mcp_import_export.import_from_desktop_help')}
                 </p>
               </div>
             </div>
@@ -214,12 +216,12 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
               {importingDesktop ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Importing...
+                  {t('components.mcp_import_export.importing')}
                 </>
               ) : (
                 <>
                   <Download className="h-4 w-4" />
-                  Import from Claude Desktop
+                  {t('components.mcp_import_export.import_from_desktop_button')}
                 </>
               )}
             </Button>
@@ -234,9 +236,9 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
                 <FileText className="h-5 w-5 text-purple-500" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-medium">Import from JSON</h4>
+                <h4 className="text-sm font-medium">{t('components.mcp_import_export.import_from_json')}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Import server configuration from a JSON file
+                  {t('components.mcp_import_export.import_from_json_help')}
                 </p>
               </div>
             </div>
@@ -258,12 +260,12 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
                 {importingJson ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Importing...
+                    {t('components.mcp_import_export.importing')}
                   </>
                 ) : (
                   <>
                     <FileText className="h-4 w-4" />
-                    Choose JSON File
+                    {t('components.mcp_import_export.choose_json_file')}
                   </>
                 )}
               </Button>
@@ -279,9 +281,9 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
                 <Upload className="h-5 w-5 text-muted-foreground" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-medium">Export Configuration</h4>
+                <h4 className="text-sm font-medium">{t('components.mcp_import_export.export_configuration')}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Export your MCP server configuration
+                  {t('components.mcp_import_export.export_help')}
                 </p>
               </div>
             </div>
@@ -292,7 +294,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
               className="w-full gap-2"
             >
               <Upload className="h-4 w-4" />
-              Export (Coming Soon)
+              {t('components.mcp_import_export.export_coming_soon')}
             </Button>
           </div>
         </Card>
@@ -305,9 +307,9 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
                 <Network className="h-5 w-5 text-green-500" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-medium">Use Claude Code as MCP Server</h4>
+                <h4 className="text-sm font-medium">{t('components.mcp_import_export.use_claude_code_as_mcp')}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Start Claude Code as an MCP server that other applications can connect to
+                  {t('components.mcp_import_export.use_claude_code_as_mcp_help')}
                 </p>
               </div>
             </div>
@@ -317,7 +319,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
               className="w-full gap-2 border-green-500/20 hover:bg-green-500/10 hover:text-green-600 hover:border-green-500/50"
             >
               <Network className="h-4 w-4" />
-              Start MCP Server
+              {t('components.mcp_import_export.start_mcp_server')}
             </Button>
           </div>
         </Card>
@@ -328,11 +330,11 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Info className="h-4 w-4 text-primary" />
-            <span>JSON Format Examples</span>
+            <span>{t('components.mcp_import_export.json_format_examples')}</span>
           </div>
           <div className="space-y-3 text-xs">
             <div>
-              <p className="font-medium text-muted-foreground mb-1">Single server:</p>
+              <p className="font-medium text-muted-foreground mb-1">{t('components.mcp_import_export.single_server')}</p>
               <pre className="bg-background p-3 rounded-lg overflow-x-auto">
 {`{
   "type": "stdio",
@@ -343,7 +345,7 @@ export const MCPImportExport: React.FC<MCPImportExportProps> = ({
               </pre>
             </div>
             <div>
-              <p className="font-medium text-muted-foreground mb-1">Multiple servers (.mcp.json format):</p>
+              <p className="font-medium text-muted-foreground mb-1">{t('components.mcp_import_export.multiple_servers')}</p>
               <pre className="bg-background p-3 rounded-lg overflow-x-auto">
 {`{
   "mcpServers": {

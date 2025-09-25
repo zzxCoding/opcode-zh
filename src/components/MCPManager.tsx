@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Toast, ToastContainer } from "@/components/ui/toast";
@@ -27,6 +28,7 @@ interface MCPManagerProps {
 export const MCPManager: React.FC<MCPManagerProps> = ({
   className: _className,
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("servers");
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
       setServers(serverList);
     } catch (err) {
       console.error("MCPManager: Failed to load MCP servers:", err);
-      setError("Failed to load MCP servers. Make sure Claude Code is installed.");
+      setError(t('components.mcp_manager.error_loading_servers'));
     } finally {
       setLoading(false);
     }
@@ -64,7 +66,7 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
    */
   const handleServerAdded = () => {
     loadServers();
-    setToast({ message: "MCP server added successfully!", type: "success" });
+    setToast({ message: t('components.mcp_manager.server_added'), type: "success" });
     setActiveTab("servers");
   };
 
@@ -73,7 +75,7 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
    */
   const handleServerRemoved = (name: string) => {
     setServers(prev => prev.filter(s => s.name !== name));
-    setToast({ message: `Server "${name}" removed successfully!`, type: "success" });
+    setToast({ message: t('components.mcp_manager.server_removed', { name }), type: "success" });
   };
 
   /**
@@ -83,12 +85,19 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
     loadServers();
     if (failed === 0) {
       setToast({ 
-        message: `Successfully imported ${imported} server${imported > 1 ? 's' : ''}!`, 
+        message: t('components.mcp_manager.import_success', { 
+          count: imported, 
+          plural: imported > 1 ? 's' : '' 
+        }), 
         type: "success" 
       });
     } else {
       setToast({ 
-        message: `Imported ${imported} server${imported > 1 ? 's' : ''}, ${failed} failed`, 
+        message: t('components.mcp_manager.import_partial', { 
+          imported, 
+          importedPlural: imported > 1 ? 's' : '', 
+          failed 
+        }), 
         type: "error" 
       });
     }
@@ -101,9 +110,9 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-heading-1">MCP Servers</h1>
+              <h1 className="text-heading-1">{t('components.mcp_manager.title')}</h1>
               <p className="mt-1 text-body-small text-muted-foreground">
-                Manage Model Context Protocol servers
+                {t('components.mcp_manager.description')}
               </p>
             </div>
           </div>
@@ -128,19 +137,20 @@ export const MCPManager: React.FC<MCPManagerProps> = ({
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">{t('components.mcp_manager.loading_servers')}</span>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid grid-cols-3 w-full max-w-md mb-6 h-auto p-1">
                 <TabsTrigger value="servers" className="py-2.5 px-3">
-                  Servers
+                  {t('components.mcp_manager.servers_tab')}
                 </TabsTrigger>
                 <TabsTrigger value="add" className="py-2.5 px-3">
-                  Add Server
+                  {t('components.mcp_manager.add_server_tab')}
                 </TabsTrigger>
                 <TabsTrigger value="import" className="py-2.5 px-3">
-                  Import/Export
+                  {t('components.mcp_manager.import_export_tab')}
                 </TabsTrigger>
               </TabsList>
 

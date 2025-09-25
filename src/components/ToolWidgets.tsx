@@ -63,11 +63,13 @@ import { open } from "@tauri-apps/plugin-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 /**
  * Widget for TodoWrite tool - displays a beautiful TODO list
  */
 export const TodoWidget: React.FC<{ todos: any[]; result?: any }> = ({ todos, result: _result }) => {
+  const { t } = useTranslation();
   const statusIcons = {
     completed: <CheckCircle2 className="h-4 w-4 text-green-500" />,
     in_progress: <Clock className="h-4 w-4 text-blue-500 animate-pulse" />,
@@ -84,7 +86,7 @@ export const TodoWidget: React.FC<{ todos: any[]; result?: any }> = ({ todos, re
     <div className="space-y-2">
       <div className="flex items-center gap-2 mb-3">
         <FileEdit className="h-4 w-4 text-primary" />
-        <span className="text-sm font-medium">Todo List</span>
+        <span className="text-sm font-medium">{t('components.tool_widgets.todo_list')}</span>
       </div>
       <div className="space-y-2">
         {todos.map((todo, idx) => (
@@ -125,6 +127,7 @@ export const TodoWidget: React.FC<{ todos: any[]; result?: any }> = ({ todos, re
  * Widget for LS (List Directory) tool
  */
 export const LSWidget: React.FC<{ path: string; result?: any }> = ({ path, result }) => {
+  const { t } = useTranslation();
   // If we have a result, show it using the LSResultWidget
   if (result) {
     let resultContent = '';
@@ -166,7 +169,7 @@ export const LSWidget: React.FC<{ path: string; result?: any }> = ({ path, resul
       {!result && (
         <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
           <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse" />
-          <span>Loading...</span>
+          <span>{t('components.tool_widgets.loading')}</span>
         </div>
       )}
     </div>
@@ -348,6 +351,7 @@ export const LSResultWidget: React.FC<{ content: string }> = ({ content }) => {
  * Widget for Read tool
  */
 export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ filePath, result }) => {
+  const { t } = useTranslation();
   // If we have a result, show it using the ReadResultWidget
   if (result) {
     let resultContent = '';
@@ -369,7 +373,7 @@ export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ fileP
       <div className="space-y-2">
         <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
           <FileText className="h-4 w-4 text-primary" />
-          <span className="text-sm">File content:</span>
+          <span className="text-sm">{t('components.tool_widgets.file_content')}:</span>
           <code className="text-sm font-mono bg-background px-2 py-0.5 rounded flex-1 truncate">
             {filePath}
           </code>
@@ -389,7 +393,7 @@ export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ fileP
       {!result && (
         <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
           <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse" />
-          <span>Loading...</span>
+          <span>{t('components.tool_widgets.loading')}</span>
         </div>
       )}
     </div>
@@ -400,6 +404,7 @@ export const ReadWidget: React.FC<{ filePath: string; result?: any }> = ({ fileP
  * Widget for Read tool result - shows file content with line numbers
  */
 export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> = ({ content, filePath }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const { theme } = useTheme();
   const syntaxTheme = getClaudeSyntaxTheme(theme);
@@ -510,7 +515,7 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
         <div className="flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs font-mono text-muted-foreground">
-            {filePath || "File content"}
+            {filePath || "{t('components.tool_widgets.file_content')}"}
           </span>
           {isLargeFile && (
             <span className="text-xs text-muted-foreground">
@@ -524,7 +529,7 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <ChevronRight className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-90")} />
-            {isExpanded ? "Collapse" : "Expand"}
+            {isExpanded ? t('components.tool_widgets.collapse') : t('components.tool_widgets.expand')}
           </button>
         )}
       </div>
@@ -561,7 +566,7 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
       
       {isLargeFile && !isExpanded && (
         <div className="px-4 py-3 text-xs text-muted-foreground text-center bg-zinc-900/30">
-          Click "Expand" to view the full file
+          {t('components.tool_widgets.click_expand_to_view_full_file')}
         </div>
       )}
     </div>
@@ -572,6 +577,7 @@ export const ReadResultWidget: React.FC<{ content: string; filePath?: string }> 
  * Widget for Glob tool
  */
 export const GlobWidget: React.FC<{ pattern: string; result?: any }> = ({ pattern, result }) => {
+  const { t } = useTranslation();
   // Extract result content if available
   let resultContent = '';
   let isError = false;
@@ -617,7 +623,7 @@ export const GlobWidget: React.FC<{ pattern: string; result?: any }> = ({ patter
             ? "border-red-500/20 bg-red-500/5 text-red-400" 
             : "border-green-500/20 bg-green-500/5 text-green-300"
         )}>
-          {resultContent || (isError ? "Search failed" : "No matches found")}
+          {resultContent || (isError ? t('components.tool_widgets.search_failed') : t('components.tool_widgets.no_matches_found'))}
         </div>
       )}
     </div>
@@ -632,6 +638,7 @@ export const BashWidget: React.FC<{
   description?: string;
   result?: any;
 }> = ({ command, description, result }) => {
+  const { t } = useTranslation();
   // Extract result content if available
   let resultContent = '';
   let isError = false;
@@ -685,7 +692,7 @@ export const BashWidget: React.FC<{
               ? "border-red-500/20 bg-red-500/5 text-red-400" 
               : "border-green-500/20 bg-green-500/5 text-green-300"
           )}>
-            {resultContent || (isError ? "Command failed" : "Command completed")}
+            {resultContent || (isError ? t('components.tool_widgets.command_failed') : t('components.tool_widgets.command_completed'))}
           </div>
         )}
       </div>
@@ -874,6 +881,7 @@ export const GrepWidget: React.FC<{
   exclude?: string;
   result?: any;
 }> = ({ pattern, include, path, exclude, result }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(true);
   
   // Extract result content if available
@@ -1001,7 +1009,7 @@ export const GrepWidget: React.FC<{
             <div className="flex items-center gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
               <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
               <div className="text-sm text-red-600 dark:text-red-400">
-                {resultContent || "Search failed"}
+                {resultContent || t('components.tool_widgets.search_failed')}
               </div>
             </div>
           ) : grepResults.length > 0 ? (
@@ -2500,6 +2508,7 @@ export const WebFetchWidget: React.FC<{
  * Widget for TodoRead tool - displays todos with advanced viewing capabilities
  */
 export const TodoReadWidget: React.FC<{ todos?: any[]; result?: any }> = ({ todos: inputTodos, result }) => {
+  const { t } = useTranslation();
   // Extract todos from result if not directly provided
   let todos: any[] = inputTodos || [];
   if (!todos.length && result) {
@@ -2528,28 +2537,28 @@ export const TodoReadWidget: React.FC<{ todos?: any[]; result?: any }> = ({ todo
       color: "text-green-500",
       bgColor: "bg-green-500/10",
       borderColor: "border-green-500/20",
-      label: "Completed"
+      label: t('components.tool_widgets.completed')
     },
     in_progress: {
       icon: <Clock className="h-4 w-4 animate-pulse" />,
       color: "text-blue-500",
       bgColor: "bg-blue-500/10",
       borderColor: "border-blue-500/20",
-      label: "In Progress"
+      label: t('components.tool_widgets.in_progress')
     },
     pending: {
       icon: <Circle className="h-4 w-4" />,
       color: "text-muted-foreground",
       bgColor: "bg-muted/50",
       borderColor: "border-muted",
-      label: "Pending"
+      label: t('components.tool_widgets.pending')
     },
     cancelled: {
       icon: <X className="h-4 w-4" />,
       color: "text-red-500",
       bgColor: "bg-red-500/10",
       borderColor: "border-red-500/20",
-      label: "Cancelled"
+      label: t('components.tool_widgets.cancelled')
     }
   };
 
@@ -2611,7 +2620,7 @@ export const TodoReadWidget: React.FC<{ todos?: any[]; result?: any }> = ({ todo
   // Export todos as Markdown
   const exportAsMarkdown = () => {
     let markdown = "# Todo List\n\n";
-    markdown += `**Total**: ${stats.total} | **Completed**: ${stats.completed} | **In Progress**: ${stats.inProgress} | **Pending**: ${stats.pending}\n\n`;
+    markdown += `**Total**: ${stats.total} | **${t('components.tool_widgets.completed')}**: ${stats.completed} | **${t('components.tool_widgets.in_progress')}**: ${stats.inProgress} | **${t('components.tool_widgets.pending')}**: ${stats.pending}\n\n`;
     
     const statusGroups = ["pending", "in_progress", "completed", "cancelled"];
     statusGroups.forEach(status => {
@@ -2810,7 +2819,7 @@ export const TodoReadWidget: React.FC<{ todos?: any[]; result?: any }> = ({ todo
               ))}
               {todos.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-4">
-                  No todos
+                  {t('components.tool_widgets.no_todos')}
                 </p>
               )}
             </div>
@@ -2929,7 +2938,7 @@ export const TodoReadWidget: React.FC<{ todos?: any[]; result?: any }> = ({ todo
                 className="h-7 px-2 text-xs"
                 onClick={() => setStatusFilter(status)}
               >
-                {status === "all" ? "All" : statusConfig[status as keyof typeof statusConfig]?.label}
+                {status === "all" ? t('components.tool_widgets.all') : statusConfig[status as keyof typeof statusConfig]?.label}
                 {status === "all" && (
                   <Badge variant="secondary" className="ml-1 h-4 px-1 text-xs">
                     {stats.total}
@@ -2976,8 +2985,8 @@ export const TodoReadWidget: React.FC<{ todos?: any[]; result?: any }> = ({ todo
             {filteredTodos.length === 0 && (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 {searchQuery || statusFilter !== "all" 
-                  ? "No todos match your filters" 
-                  : "No todos available"}
+                  ? t('components.tool_widgets.no_todos_match_filters') 
+                  : t('components.tool_widgets.no_todos_available')}
               </div>
             )}
           </div>

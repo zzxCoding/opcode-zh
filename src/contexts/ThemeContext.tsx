@@ -1,7 +1,9 @@
 import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
 import { api } from '../lib/api';
+import i18n from '../i18n';
 
 export type ThemeMode = 'dark' | 'gray' | 'light' | 'custom';
+export type Language = 'en' | 'zh';
 
 export interface CustomThemeColors {
   background: string;
@@ -26,8 +28,10 @@ export interface CustomThemeColors {
 interface ThemeContextType {
   theme: ThemeMode;
   customColors: CustomThemeColors;
+  language: Language;
   setTheme: (theme: ThemeMode) => Promise<void>;
   setCustomColors: (colors: Partial<CustomThemeColors>) => Promise<void>;
+  setLanguage: (language: Language) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -35,6 +39,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'theme_preference';
 const CUSTOM_COLORS_STORAGE_KEY = 'theme_custom_colors';
+const LANGUAGE_STORAGE_KEY = 'language_preference';
 
 // Default custom theme colors (based on current dark theme)
 const DEFAULT_CUSTOM_COLORS: CustomThemeColors = {
@@ -60,11 +65,12 @@ const DEFAULT_CUSTOM_COLORS: CustomThemeColors = {
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>('gray');
   const [customColors, setCustomColorsState] = useState<CustomThemeColors>(DEFAULT_CUSTOM_COLORS);
+  const [language, setLanguageState] = useState<Language>('en');
   const [isLoading, setIsLoading] = useState(true);
 
   // Load theme preference and custom colors from storage
   useEffect(() => {
-    const loadTheme = async () => {
+    const loadSettings = async () => {
       try {
         // Load theme preference
         const savedTheme = await api.getSetting(THEME_STORAGE_KEY);
@@ -89,14 +95,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             await applyTheme('custom', colors);
           }
         }
+
+        // Load language preference
+        const savedLanguage = await api.getSetting(LANGUAGE_STORAGE_KEY);
+        
+        if (savedLanguage) {
+          const lang = savedLanguage as Language;
+          setLanguageState(lang);
+          i18n.changeLanguage(lang);
+        }
       } catch (error) {
-        console.error('Failed to load theme settings:', error);
+        console.error('Failed to load settings:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadTheme();
+    loadSettings();
   }, []);
 
   // Apply theme to document
@@ -164,11 +179,30 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [theme, customColors, applyTheme]);
 
+  const setLanguage = useCallback(async (newLanguage: Language) => {
+    try {
+      setIsLoading(true);
+      
+      // Apply language immediately
+      setLanguageState(newLanguage);
+      i18n.changeLanguage(newLanguage);
+      
+      // Save to storage
+      await api.saveSetting(LANGUAGE_STORAGE_KEY, newLanguage);
+    } catch (error) {
+      console.error('Failed to save language preference:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const value: ThemeContextType = {
     theme,
     customColors,
+    language,
     setTheme,
     setCustomColors,
+    setLanguage,
     isLoading,
   };
 
@@ -179,10 +213,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
-export const useThemeContext = () => {
+export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useThemeContext must be used within a ThemeProvider');
+    throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
 };

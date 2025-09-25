@@ -25,6 +25,8 @@ import { TabContent } from "@/components/TabContent";
 import { useTabState } from "@/hooks/useTabState";
 import { useAppLifecycle, useTrackEvent } from "@/hooks";
 import { StartupIntro } from "@/components/StartupIntro";
+import { useTranslation } from "react-i18next";
+import "./i18n";
 
 type View = 
   | "welcome" 
@@ -46,6 +48,7 @@ type View =
  * AppContent component - Contains the main app logic, wrapped by providers
  */
 function AppContent() {
+  const { t } = useTranslation();
   const [view, setView] = useState<View>("tabs");
   const { createClaudeMdTab, createSettingsTab, createUsageTab, createMCPTab, createAgentsTab } = useTabState();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -241,7 +244,7 @@ function AppContent() {
               >
                 <h1 className="text-4xl font-bold tracking-tight">
                   <span className="rotating-symbol"></span>
-                  Welcome to opcode
+                  {t('common.welcome', 'Welcome to opcode')}
                 </h1>
               </motion.div>
 
@@ -259,7 +262,7 @@ function AppContent() {
                   >
                     <div className="h-full flex flex-col items-center justify-center p-8">
                       <Bot className="h-16 w-16 mb-4 text-primary" />
-                      <h2 className="text-xl font-semibold">CC Agents</h2>
+                      <h2 className="text-xl font-semibold">{t('components.agents.title')}</h2>
                     </div>
                   </Card>
                 </motion.div>
@@ -276,7 +279,7 @@ function AppContent() {
                   >
                     <div className="h-full flex flex-col items-center justify-center p-8">
                       <FolderCode className="h-16 w-16 mb-4 text-primary" />
-                      <h2 className="text-xl font-semibold">Projects</h2>
+                      <h2 className="text-xl font-semibold">{t('components.projects.title')}</h2>
                     </div>
                   </Card>
                 </motion.div>

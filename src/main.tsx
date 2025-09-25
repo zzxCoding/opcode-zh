@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AnalyticsErrorBoundary } from "./components/AnalyticsErrorBoundary";
 import { analytics, resourceMonitor } from "./lib/analytics";
 import { PostHogProvider } from "posthog-js/react";
+import "./i18n"; // 导入国际化配置
 import "./assets/shimmer.css";
 import "./styles.css";
 import AppIcon from "./assets/nfo/asterisk-logo.png";
