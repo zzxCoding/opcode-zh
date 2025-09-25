@@ -1,5 +1,7 @@
 # opcode
 
+> **⚠️ Project Notice**: This project is a Chinese localization fork based on [winfunc/opcode](https://github.com/winfunc/opcode). Thanks to the original author for their contributions.
+
 <div align="center">
   <img src="src-tauri/icons/icon.png" alt="opcode Logo" width="120" height="120">
 

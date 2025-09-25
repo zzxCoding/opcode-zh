@@ -1,5 +1,7 @@
 # opcode
 
+> **⚠️ 项目声明**: 本项目是基于 [winfunc/opcode](https://github.com/winfunc/opcode) 的二次开发汉化版本，在此感谢原作者的贡献。
+
 <div align="center">
   <img src="src-tauri/icons/icon.png" alt="opcode Logo" width="120" height="120">
 
