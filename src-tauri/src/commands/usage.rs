@@ -124,8 +124,14 @@ fn calculate_cost(model: &str, usage: &UsageData) -> f64 {
                 SONNET_4_CACHE_READ_PRICE,
             )
         } else {
-            // Return 0 for unknown models to avoid incorrect cost estimations.
-            (0.0, 0.0, 0.0, 0.0)
+            // For all other models (non-Claude), use Sonnet 4 pricing as default
+            // This ensures all models have cost calculation instead of returning 0
+            (
+                SONNET_4_INPUT_PRICE,
+                SONNET_4_OUTPUT_PRICE,
+                SONNET_4_CACHE_WRITE_PRICE,
+                SONNET_4_CACHE_READ_PRICE,
+            )
         };
 
     // Calculate cost (prices are per million tokens)
